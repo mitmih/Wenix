@@ -24,6 +24,8 @@
 
 $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match 'wim'} ######
 
+if ($null -eq $wim_vol) { break }  # отсутствует том с wim-файлами
+
 
 $ITfolder = $wim_vol.DriveLetter + ':\.IT'
 if (Test-Path $ITfolder)
@@ -34,7 +36,7 @@ if (Test-Path $ITfolder)
     $wimsOS = Get-ChildItem -Recurse -Filter 'install.wim' -Path "$ITfolder"
     $wimsPE = Get-ChildItem -Recurse -Filter 'boot.wim' -Path "$ITfolder\PE"
     
-    $OSFile = $wimsOS.FullName | Out-GridView -Title 'Please Select OS' -OutputMode Single
+    $OSFile = $wimsOS.FullName # | Out-GridView -Title 'Please Select OS' -OutputMode Single
     $PEfile = $wimsPE.FullName
     
     $OSFile
