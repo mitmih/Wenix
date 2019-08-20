@@ -33,7 +33,7 @@ if (Test-Path $ITfolder)
 # если папка есть, проверить, есть ли PE-шный boot.wim, если его нет - смысла что-то делать тоже нет
 # если да, то проверить существование install.wim`ов и вывести доступные для переустановки
 {
-    $wimsOS = Get-ChildItem -Recurse -Filter 'install.wim' -Path "$ITfolder"
+    $wimsOS = Get-ChildItem -Recurse -Filter 'install.wim' -Path "$ITfolder\10"
     $wimsPE = Get-ChildItem -Recurse -Filter 'boot.wim' -Path "$ITfolder\PE"
     
     $OSFile = $wimsOS.FullName # | Out-GridView -Title 'Please Select OS' -OutputMode Single
@@ -42,12 +42,21 @@ if (Test-Path $ITfolder)
     $OSFile
     $PEfile
 }
-else
-{
-    Write-Host '-'
-}
+else { break }
 
 
 $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path}
-$wim_disk = Get-Disk | Where-Object {$_.Path -eq $wim_part.DiskPath}
+# $wim_disk = Get-Disk | Where-Object {$_.Path -eq $wim_part.DiskPath}
 
+Remove-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber (1..($wim_part.PartitionNumber - 1))
+
+New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'B') -Size  2GB -IsActive | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "1_BOOT"
+New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'O') -Size 78GB           | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "2_OS"
+New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'P') -Size 13GB           | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "3_PE"
+
+
+Start-Process -Wait -FilePath "$env:windir\System32\dism.exe" -ArgumentList "/Apply-Image", "/ImageFile:$PEfile", "/Index:1", "/ApplyDir:P:\"
+Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "P:\Windows", "/s B:", "/f ALL"
+
+Start-Process -Wait -FilePath "$env:windir\System32\dism.exe" -ArgumentList "/Apply-Image", "/ImageFile:$OSFile", "/Index:1", "/ApplyDir:O:\"
+Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "O:\Windows"
