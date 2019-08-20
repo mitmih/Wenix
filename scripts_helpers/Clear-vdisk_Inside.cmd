@@ -18,5 +18,5 @@ REM guest (VM)
 
 
 
-rem host
-rem & 'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe' modifyhd "C:\!vb\w7x64\w7x64.vdi" --compact
+REM host
+    REM & 'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe' modifyhd "d:\_vm\7\7.vdi" --compact
