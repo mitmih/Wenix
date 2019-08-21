@@ -1,21 +1,5 @@
 # Clear-Host
 
-# $MenuText=@"
-
-# Please press specified key to select action:
-    
-#     Esc     reboot
-    
-#     Enter   re-install Windows 10
-    
-#     m       show menu
-    
-#     b       break menu script
-    
-#     t       type command
-    
-# "@
-
 $MenuText = @(
     ""
     
@@ -38,7 +22,6 @@ $MenuText
 
 $cycle = $true ; while ($cycle)
 {
-    # $key = Read-Host -Prompt "press any key..."
     $key = [console]::ReadKey()
     
     switch ($key.key)
