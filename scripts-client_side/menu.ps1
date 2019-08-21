@@ -1,4 +1,4 @@
-Clear-Host
+# Clear-Host
 
 $MenuText=@"
 Please press specified key to select action:
