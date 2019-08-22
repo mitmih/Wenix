@@ -28,16 +28,16 @@ REM Set high-performance power scheme to speed deployment
 
 REM if files doesn`t exists - nothing to do
     
-    REM if NOT ERRORLEVEL 0 (
-    if NOT exist "X:\boot.wim" (
+    REM REM if NOT ERRORLEVEL 0 (
+    REM if NOT exist "Z:\boot.wim" (
         
-        pause  && exit
+    REM     pause  && exit
         
-    ) else (
+    REM ) else (
         
-        set "winPEWIM=X:\boot.wim"
+    REM     set "winPEWIM=P:\.IT\PE\boot.wim"
         
-    )
+    REM )
 
 
 
@@ -57,35 +57,35 @@ REM REM prepare script for diskpart in temp dir
     
     REM 1й partition - active, boot
     
-    echo create partition primary size=2047>> %DiskPartCmd%
+    echo create partition primary size=2048>> %DiskPartCmd%
     
     echo format quick fs=ntfs label="1_BOOT">> %DiskPartCmd%
     
-    echo assign letter="A" noerr>> %DiskPartCmd%
+    echo assign letter="B" noerr>> %DiskPartCmd%
     
     echo active>> %DiskPartCmd%
     
     echo.>> %DiskPartCmd%
     
     
-REM     REM 2й partition - for applying WinPE boot.wim
+    REM 2й partition - for applying WinPE boot.wim
     
-REM     echo create partition primary size=38912>> %DiskPartCmd%
+    echo create partition primary size=79872>> %DiskPartCmd%
     
-REM     echo format quick fs=ntfs label="2_PE">> %DiskPartCmd%
+    echo format quick fs=ntfs label="2_OS">> %DiskPartCmd%
     
-REM     echo assign letter="B" noerr>> %DiskPartCmd%
+    echo assign letter="O" noerr>> %DiskPartCmd%
     
-REM     echo.>> %DiskPartCmd%
+    echo.>> %DiskPartCmd%
     
     
-REM     REM 3й partition - for applying OS install.wim
+    REM 3й partition - for applying OS install.wim
     
-REM     echo create partition primary>> %DiskPartCmd%
+    echo create partition primary>> %DiskPartCmd%
     
-REM     echo format quick fs=ntfs label="3_OS">> %DiskPartCmd%
+    echo format quick fs=ntfs label="3_PE">> %DiskPartCmd%
     
-REM     echo assign letter="C" noerr>> %DiskPartCmd%
+    echo assign letter="P" noerr>> %DiskPartCmd%
 
 
 
@@ -93,16 +93,17 @@ REM WEAK SPOT BEGIN ############################################################
 
 REM re-partition hard drive, applying winPE image to 2nd partition
     
+    diskpart /s %DiskPartCmd% > "%DiskPartLog%"
+    
+    xcopy "%~dp0.IT\PE"  "P:\.IT\PE\" /y
+    
+    set "winPEWIM=P:\.IT\PE\boot.wim"
+    
     if exist %winPEWIM% (
-        
-        REM run diskpart script for hard drive 0
-        
-        diskpart /s %DiskPartCmd% > "%DiskPartLog%"
-        
         
         REM apply Windows PE wim-image to 2nd partition
         
-        dism /Apply-Image /ImageFile:%winPEWIM% /Index:1 /ApplyDir:A:\
+        dism /Apply-Image /ImageFile:%winPEWIM% /Index:1 /ApplyDir:P:\
     )
 
 REM WEAK SPOT END   ############################################################
@@ -115,17 +116,12 @@ REM if boot.wim applying is OK, config the BCD partition
         
         REM прописывание конфигурации загрузки
         
-        BCDboot A:\Windows /s A: /f ALL
+        BCDboot P:\Windows /s B: /f ALL
         
         
         REM rename entry for consistency with ramdisk entry
         
         BCDedit /set {default} description "Windows PE, HARD DRIVE BOOT"
-        
-        
-        REM нужно заменить это копирование на симлинки при редактировании boot.w    im
-        
-        robocopy %Не_Знаю_пока_откуда_И_куда%\.WinPEtoRAMDisk A:\.WinPEtoRAMDisk /MIR
     )
 
 
@@ -134,7 +130,7 @@ REM + menu entry point to boot winPE from RAMDisk
 
 REM - menu entry point to boot winPE from hard drive
     
-    if exist A:\.WinPEtoRAMDisk\boot.sdi (
+    if exist P:\.IT\PE\boot.sdi (
 
         echo ready for ramdisk
         
@@ -142,9 +138,9 @@ REM - menu entry point to boot winPE from hard drive
             
             bcdedit /create {ramdiskoptions} /d "Windows PE, RAM DISK BOOT"
             
-            bcdedit /set    {ramdiskoptions} ramdisksdidevice partition=A:
+            bcdedit /set    {ramdiskoptions} ramdisksdidevice partition=P:
             
-            bcdedit /set    {ramdiskoptions} ramdisksdipath \.WinPEtoRAMDisk\boot.sdi
+            bcdedit /set    {ramdiskoptions} ramdisksdipath \.IT\PE\boot.sdi
             
             
         REM make a new GUID for the boot loader entry
@@ -156,9 +152,9 @@ REM - menu entry point to boot winPE from hard drive
             
         REM make OS loader object
             
-            bcdedit /set !GUID!   device ramdisk=[A:]\.WinPEtoRAMDisk\boot.wim,{ramdiskoptions}
+            bcdedit /set !GUID!   device ramdisk=[P:]\.IT\PE\boot.wim,{ramdiskoptions}
             
-            bcdedit /set !GUID! osdevice ramdisk=[A:]\.WinPEtoRAMDisk\boot.wim,{ramdiskoptions}
+            bcdedit /set !GUID! osdevice ramdisk=[P:]\.IT\PE\boot.wim,{ramdiskoptions}
             
             bcdedit /set !GUID! path \Windows\System32\Boot\winload.exe
             
@@ -176,5 +172,8 @@ REM - menu entry point to boot winPE from hard drive
             
         REM remove default (boot PE from HD), leave only RAMDisk`s entry
             
-            REM BCDedit /delete {default} /cleanup
+            BCDedit /delete {default} /cleanup
     )
+
+REM 
+    xcopy "%~dp0.IT\10"  "P:\.IT\10\" /y

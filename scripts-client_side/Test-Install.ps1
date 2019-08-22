@@ -48,7 +48,7 @@ else { break }
 $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path}
 # $wim_disk = Get-Disk | Where-Object {$_.Path -eq $wim_part.DiskPath}
 
-Remove-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber (1..($wim_part.PartitionNumber - 1))
+Remove-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber (1..($wim_part.PartitionNumber - 1)) -confirm:$false
 
 New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'B') -Size  2GB -IsActive | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "1_BOOT"
 New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'O') -Size 78GB           | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "2_OS"

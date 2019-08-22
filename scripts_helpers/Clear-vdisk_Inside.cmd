@@ -15,6 +15,10 @@ REM guest (VM)
     if exist "d:\" (start "disk d:" "%~dp0sdelete64.exe" -c -s -z d: /accepteula)
     if exist "e:\" (start "disk e:" "%~dp0sdelete64.exe" -c -s -z e: /accepteula)
     if exist "f:\" (start "disk f:" "%~dp0sdelete64.exe" -c -s -z f: /accepteula)
+    
+    if exist "g:\" (start "disk g:" "%~dp0sdelete64.exe" -c -s -z g: /accepteula)
+    if exist "h:\" (start "disk h:" "%~dp0sdelete64.exe" -c -s -z h: /accepteula)
+    if exist "i:\" (start "disk i:" "%~dp0sdelete64.exe" -c -s -z i: /accepteula)
 
 
 
