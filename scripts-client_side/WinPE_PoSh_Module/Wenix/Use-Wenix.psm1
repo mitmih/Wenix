@@ -30,7 +30,7 @@ function Show-Menu {
     Author: Dmitry Mikhaylov aka alt-air
 #>
     
-[CmdletBinding()]  # SupportsShouldProcess)]
+    # [CmdletBinding()]  # SupportsShouldProcess)]
     param ()
     
     begin
@@ -40,17 +40,15 @@ function Show-Menu {
             
             "Please press specified key to select action:"
             
-            "Esc    reboot"
+            "   Esc    reboot"
             
-            "0      re-install Windows 10"
+            "   0      re-install Windows 10"
             
-            "7      re-install Windows 7"
+            "   7      re-install Windows 7"
             
-            # "m      show menu"
+            "   b      break menu script"
             
-            "b      break menu script"
-            
-            "t      type command"
+            "   t      type command"
             
             ""
         )
@@ -63,45 +61,94 @@ function Show-Menu {
 
 
 function Test-Disk {
+    # [CmdletBinding()]  # SupportsShouldProcess)]
     param ()
     
-    begin { $CheckList = @() }
+    begin { $CheckList = [ordered]@{} }
     
     process
     {
-        $CheckList += (Get-Partition -DiskNumber 0 -PartitionNumber 1 | Get-Volume).FileSystemLabel -match '_BOOT'
+        $CheckList['boot'] = (Get-Partition -DiskNumber 0 -PartitionNumber 1 | Get-Volume).FileSystemLabel -match '_BOOT'
         
-        $CheckList += (Get-Partition -DiskNumber 0 -PartitionNumber 2 | Get-Volume).FileSystemLabel -match '_OS'
+        $CheckList['os'] = (Get-Partition -DiskNumber 0 -PartitionNumber 2 | Get-Volume).FileSystemLabel -match '_OS'
         
-        $CheckList += (Get-Partition -DiskNumber 0 -PartitionNumber 3 | Get-Volume).FileSystemLabel -match '_PE'
+        $CheckList['pe'] = (Get-Partition -DiskNumber 0 -PartitionNumber 3 | Get-Volume).FileSystemLabel -match '_PE'
         
-        $CheckList += (Get-Partition -DiskNumber 0).Length -ge 3
+        $CheckList['partition count']= (Get-Partition -DiskNumber 0).Length -ge 3
         
-        $CheckList += $null -ne (BCDEdit /enum | Select-String -Pattern "^device.*ramdisk=.*.IT.PE.boot.wim")
+        $CheckList['2nd boot menu entry'] = $null -ne (BCDEdit /enum | Select-String -Pattern "^device.*ramdisk=.*.IT.PE.boot.wim")
     }
     
     end
     {
-        return ($CheckList -notcontains $false)
+        if ($CheckList.Values -contains $true)
+        {
+            Write-Host '    disk checks OK                  ' -BackgroundColor Gray -ForegroundColor DarkGreen
+            $CheckList.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
+        }
+        
+        if ($CheckList.Values -contains $false)
+        {
+            Write-Host '    disk checks FAILED              ' -BackgroundColor Gray -ForegroundColor DarkRed
+            $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
+        }
+        
+        return ($CheckList.Values -notcontains $false)
     }
 }
 
 
 function Test-Wim {
-    param ($ver)
+    [CmdletBinding()]  # SupportsShouldProcess)]
+    param ( $label, $ver, [switch] $md5 = $false)
     
-    begin { $CheckList = @() }
+    begin
+    {
+        $CheckList = [ordered]@{}
+        
+        $PE = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match "$label"}).DriveLetter):\.IT\PE"
+        
+        $OS = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match "$label"}).DriveLetter):\.IT\$ver"
+    }
     
     process
     {
-        $CheckList += Test-Path -Path "$((Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}).DriveLetter):\.IT\PE\boot.wim"
+        $CheckList["PE boot.wim exist"] = Test-Path -Path "$PE\boot.wim"
         
-        $CheckList += Test-Path -Path "$((Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}).DriveLetter):\.IT\$ver\install.wim"
+        $CheckList["OS install.wim exist"] = Test-Path -Path "$OS\install.wim"
+        
+        if ($md5)
+        {
+            $PEmd5calc = Get-FileHash -Path "$PE\boot.wim" -Algorithm MD5
+            
+            $PEmd5real = Get-Content -Path "$PE\boot.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
+            
+            $CheckList["PE boot.wim MD5"] = $PEmd5real -imatch $PEmd5calc.Hash
+            
+            
+            $OSmd5calc = Get-FileHash -Path "$OS\install.wim" -Algorithm MD5
+            
+            $OSmd5real = Get-Content -Path "$OS\install.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
+            
+            $CheckList["OS install.wim MD5"] = $OSmd5real -imatch $OSmd5calc.Hash
+        }
     }
     
     end
     {
-        return ($CheckList -notcontains $false)
+        if ($CheckList.Values -contains $true)
+        {
+            Write-Host '    files checks OK                 ' -BackgroundColor Gray -ForegroundColor DarkGreen
+            $CheckList.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
+        }
+        
+        if ($CheckList.Values -contains $false)
+        {
+            Write-Host '    files checks FAILED             ' -BackgroundColor Gray -ForegroundColor DarkRed
+            $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
+        }
+        
+        return ($CheckList.Values -notcontains $false)
     }
 }
 
@@ -124,25 +171,19 @@ function Use-Wenix {
                     Write-Host "installation process launched"
                     
                     $ver = if ($_ -eq 'D7') { '7' } else { '10' }
-                    $ver
                     
-                    if (Test-Wim $ver)
-                    {
-                        $cycle = $false
-                        if (Test-Disk -and Test-Wim $ver)
-                        # диск разбит как надо: назначаем буковки разделам, перенакатываем раздел с виндой, удаляем старую запись и добавляем новую в BCD
-                        {}
-                        elseif (Test-Wim $ver)
-                        # диск нужно переразбить, назначить буквы, накатить PE, прописать в BCD загрузку PE с ЖД и с рам-диска, накатить винду, добавить загрузку винды
-                        {}
-                    }
+                    $checkDisk = Test-Disk
+                    $checkWim = if ($checkDisk) { Test-Wim -ver $ver -label "_PE" <# -md5 #> } else { Test-Wim -ver $ver -label "wim" <# -md5 #> }
                     
+                    # $checkDisk = (Test-Disk) -or $true  # for debug both ways
+                    if     ( $checkDisk -and $checkWim) {Write-Host "1 - re-apply wim"}
+                    elseif (!$checkDisk -and $checkWim) {Write-Host "2 - remap disk, re-apply wim"}
                     
-                    break
+                    return
                 }
                 
                 'Escape' {
-                    Write-Host "ppress 'y' to confirm exit"
+                    Write-Host "ppress 'Y' to confirm exit"
                     
                     if (([console]::ReadKey()).key -eq 'Y') { exit }
                 }
@@ -159,7 +200,7 @@ function Use-Wenix {
                     break
                 }
                 
-                Default     { Clear-Host ; break }
+                Default { break }
             }
         }
     }
