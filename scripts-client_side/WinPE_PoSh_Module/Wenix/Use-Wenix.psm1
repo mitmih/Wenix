@@ -272,6 +272,8 @@ function Install-Wim
                 bcdedit /delete '{default}' /cleanup  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
                 
                 Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "O:\Windows"
+                
+                bcdedit /timeout 5
             }
             
             $res = $true
