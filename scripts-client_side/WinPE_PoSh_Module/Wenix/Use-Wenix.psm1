@@ -68,7 +68,9 @@ function Test-Disk {
     {
         $CheckList = [ordered]@{}
         
-        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match 'wim' -or $_.FileSystemLabel -match '_PE'}  # том с wim файлами
+        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match 'wim'}  # том с wim файлами
+        
+        if ($null -eq $wim_vol) { $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -eq '3_PE'} }  # том с wim файлами
         
         if ($null -ne $wim_vol) { $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path} }
     }
