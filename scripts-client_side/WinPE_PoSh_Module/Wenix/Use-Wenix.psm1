@@ -134,14 +134,14 @@ function Test-Wim {
             
             $PEmd5real = Get-Content -Path "$PE\boot.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
             
-            $CheckList["PE boot.wim MD5"] = $PEmd5real -imatch $PEmd5calc.Hash
+            $CheckList["MD5   PE    boot.wim"] = $PEmd5real -imatch $PEmd5calc.Hash
             
             
             $OSmd5calc = Get-FileHash -Path "$OS\install.wim" -Algorithm MD5
             
             $OSmd5real = Get-Content -Path "$OS\install.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
             
-            $CheckList["OS install.wim MD5"] = $OSmd5real -imatch $OSmd5calc.Hash
+            $CheckList["MD5   OS install.wim"] = $OSmd5real -imatch $OSmd5calc.Hash
         }
     }
     
@@ -418,32 +418,31 @@ function Use-Wenix {
                         Write-Host "all DONE !`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                     }
                     
-                    else
-                    {Write-Host "3 - NOT READY"}
+                    else { Write-Host "3 - NOT READY" -BackgroundColor Black}
                     
                     
-                    if ($log.Values -notcontains $false) { Restart-Computer } else { return }  # если все ок - перезагрузка, иначе - выход для отладки и ручных манипуляций
+                    if ($log.Values -notcontains $false) { Restart-Computer -Force } else { return }  # если все ок - перезагрузка, иначе - выход для отладки и ручных манипуляций
                 }
                 
                 'Escape'
                 {
                     Write-Host "ppress 'Y' to confirm exit"
                     
-                    if (([console]::ReadKey()).key -eq 'Y') { exit }
+                    if (([console]::ReadKey()).key -eq 'Y') { Restart-Computer -Force }
                 }
                 
                 'Backspace' { return }
                 
-                # 'T'
-                # {
-                #     $cmd = Read-Host -Prompt "`ntype command"
+                <# 'T'
+                {
+                    $cmd = Read-Host -Prompt "`ntype command"
                     
-                #     if ($cmd -eq 'far') { Start-Process -FilePath "$env:SystemDrive\Far\Far.exe" }
+                    if ($cmd -eq 'far') { Start-Process -FilePath "$env:SystemDrive\Far\Far.exe" }
                     
-                #     if ($cmd -eq 'cmd') { Start-Process -FilePath "$env:windir\System32\cmd.exe" -ArgumentList '/k' }
+                    if ($cmd -eq 'cmd') { Start-Process -FilePath "$env:windir\System32\cmd.exe" -ArgumentList '/k' }
                     
-                #     break
-                # }
+                    break
+                } #>
                 
                 Default { break }
             }
