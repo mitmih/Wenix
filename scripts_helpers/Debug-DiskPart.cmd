@@ -174,6 +174,3 @@ REM - menu entry point to boot winPE from hard drive
             
             BCDedit /delete {default} /cleanup
     )
-
-REM 
-    xcopy "%~dp0.IT\10"  "P:\.IT\10\" /y
