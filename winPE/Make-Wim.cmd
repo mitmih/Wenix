@@ -90,19 +90,6 @@ REM очистка на случай если остались какие-то �
 REM монтаж
     
     dism /Mount-Wim /WimFile:%wd%\%arc%\media\sources\boot.wim /index:1 /MountDir:%mnt%
-    
-    REM добавление в корень системного диска WinPE:
-    REM  Far, конфиг оболочки, профиль PowerShell, скрипты, etc
-    
-    echo  "%CD%"
-    
-    xcopy "%~dp0Windows"    %mnt%\Windows\  /e /y
-    
-    xcopy "%~dp0Far"        %mnt%\Far\      /e /y
-    
-    xcopy "%~dp0UltraVNC"   %mnt%\UltraVNC\ /e /y
-    
-    xcopy "%~dp0..\scripts_helpers\debug\Debug-Mount_Z.cmd"  %mnt%\ /y
 
 
 
@@ -145,6 +132,24 @@ REM установка доп. пакетов, порядок важен!
         
         dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\en-us\WinPE-StorageWMI_en-us.cab"
     )
+
+
+
+REM добавление в корень системного диска WinPE:
+    REM  Far, конфиг оболочки, профиль PowerShell, скрипты, etc
+    
+    echo  "%CD%"
+    
+    xcopy "%~dp0Windows"    %mnt%\Windows\  /e /y
+    
+    xcopy "%~dp0..\Wenix"    %mnt%\Windows\System32\config\systemprofile\Documents\Modules\  /e /y
+    
+    xcopy "%~dp0Far"        %mnt%\Far\      /e /y
+    
+    xcopy "%~dp0UltraVNC"   %mnt%\UltraVNC\ /e /y
+    
+    xcopy "%~dp0..\scripts_helpers\debug\Debug-Mount_Z.cmd"  %mnt%\ /y
+
 
 
 REM to be or not to be
