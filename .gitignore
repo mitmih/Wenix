@@ -6,8 +6,15 @@
 .~lock.*.*#
 ~$*.xlsx
 
-Far/*
 !Far/Far.exe.ini
+Far/
+Far/*/*
+Far/Addons/*
+Far/Documentation/*
+Far/Encyclopedia/*
+Far/Plugins/*
+Far/PluginSDK/*
+Far/Profile/*
 
 UltraVNC/*
 !UltraVNC/UltraVNC.ini
