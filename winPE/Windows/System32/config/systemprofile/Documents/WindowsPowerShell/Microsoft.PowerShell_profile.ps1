@@ -26,9 +26,7 @@
 Set-PSReadlineKeyHandler -Chord Ctrl+d -Function DeleteCharOrExit  # выход по сочетанию Ctrl + D
 
 
-Set-PSReadlineKeyHandler -Chord Ctrl+f -ScriptBlock
-# запуск Far
-{
+Set-PSReadlineKeyHandler -Chord Ctrl+f -ScriptBlock {  # запуск Far
     $d = "$env:SystemDrive"
     
     if (Test-Path -Path "$env:SystemDrive\Debug-Mount_Z.cmd")
@@ -42,9 +40,7 @@ Set-PSReadlineKeyHandler -Chord Ctrl+f -ScriptBlock
 }
 
 
-Set-PSReadlineKeyHandler -Chord Ctrl+u -ScriptBlock
-# перезагрузка модуля Wenix
-{
+Set-PSReadlineKeyHandler -Chord Ctrl+u -ScriptBlock {  # перезагрузка модуля Wenix
     Get-Module -Name Wenix | Remove-Module
     
     Import-Module -Force Wenix
@@ -52,15 +48,13 @@ Set-PSReadlineKeyHandler -Chord Ctrl+u -ScriptBlock
     Get-Module -Name Wenix
 }
 
-# Set-PSReadlineKeyHandler -Chord Ctrl+i -ScriptBlock
+# Set-PSReadlineKeyHandler -Chord Ctrl+i -ScriptBlock {
 # # захват образа на USB drive
-# {
 #     $str = '/Capture-Image /CaptureDir:' + $inp + ' /ImageFile:"' + $out + $wimFile + '" /Name:"' + $wimName + '" /Description:"' + $wimDesc + '"'
 #     Start-Process -FilePath $env:windir\System32\Dism.exe -ArgumentList $str
 # }
 
-# Set-PSReadlineKeyHandler -Chord Ctrl+Alt+i -ScriptBlock
-# {
+# Set-PSReadlineKeyHandler -Chord Ctrl+Alt+i -ScriptBlock {
 #     <#
 #         чтобы во время работы скрипта Capture-Wim.ps1 по захвату wim-файла можно было продолжить работу в основной консоли PowerShell`а, был выбран окольный путь запуска скрипта через cmd
 #         по окончании работы скрипт выключает компьютер
@@ -91,11 +85,11 @@ Set-Location -Path $env:SystemDrive\  # переход в корень диск�
 
 Get-PSDrive -PSProvider FileSystem | Select-Object Name, Root, Description, Free, Used | Format-Table -AutoSize  # информация о дисках
 
-Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
-
 # Write-Host -ForegroundColor Magenta "      Ctrl + i to capture $inp to $out$wimFile"
 
 # Write-Host -ForegroundColor Red     "Alt + Ctrl + i to capture $inp to $out$wimFile AND SHUTDOWN"
+
+Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
 
 
 
