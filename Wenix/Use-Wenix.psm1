@@ -369,7 +369,7 @@ function Find-NetConfig
             
             if (Test-Path -Path $p)
             {
-                $res = Get-Item -Path C:\.IT\PE\NetConfig.csv
+                $res = Get-Item -Path $p
                 
                 break
             }
@@ -382,24 +382,51 @@ function Find-NetConfig
 
 function Read-NetConfig
 {
+<#
+# функция читает найденный конфиг со списком сетевых папок
+# по дефолт-шлюзу фильтрует список
+# проверяет доступность и добавляет в список рабочих
+#>
     param ($file)
     
     
     begin
     {
-        $shares = @() + (Import-Csv -Path $file)
+        $shares = @()  # список сетевых папок, отфильтрованный по назначенным шлюзам
+        
+        $valid = @()  # список рабочих сетевых шар
+        
+        $GWs = @()  # список ip-адресов шлюзов, 
+        
+        foreach ($item in (ipconfig | Select-String -Pattern 'ipv4' -Context 0,2))
+        {
+            if (($item.Context.PostContext[1].Split(':')[1].Trim()).Length -gt 0) { $GWs += $item.Context.PostContext[1].Split(':')[1].Trim() }
+        }
+        
+        foreach ($gw in $GWs) { $shares += Import-Csv -Path $file | Where-Object { $_.gw -match $gw} }
     }
     
     process
     {
         foreach ($s in $shares)
         {
-            $s
+            if (Test-Connection -Quiet -Count 3 -ComputerName $s.netpath.Split('\')[2])
+            {
+                $add = 'use', $s.netpath, $s.password, "/user:$($s.user)"
+                
+                Start-Process -Wait -FilePath 'net.exe' -ArgumentList $add
+                
+                if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
+                # if (Test-Path $('filesystem::' + $s.netpath)) { $valid += $s }
+                
+                $del = 'use', $s.netpath, '/delete'
+                
+                Start-Process -FilePath 'net.exe' -ArgumentList $del -
+            }
         }
     }
     
-    end
-    { return $null }
+    end { return $valid }
 }
 
 
