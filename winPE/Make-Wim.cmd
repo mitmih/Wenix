@@ -135,20 +135,77 @@ REM установка доп. пакетов, порядок важен!
 
 
 
-REM добавление в корень системного диска WinPE:
-    REM  Far, конфиг оболочки, профиль PowerShell, скрипты, etc
+REM добавление в корень системного диска WinPE: конфиг оболочки, профиль PowerShell, скрипты, etc
     
-    echo  "%CD%"
+    xcopy "%~dp0Windows"    "%mnt%\Windows\"  /e /y
     
-    xcopy "%~dp0Windows"    %mnt%\Windows\  /e /y
+    xcopy "%~dp0..\Wenix"   "%mnt%\Windows\System32\config\systemprofile\Documents\WindowsPowerShell\Modules\Wenix\"  /e /y
     
-    xcopy "%~dp0..\Wenix"    %mnt%\Windows\System32\config\systemprofile\Documents\Modules\  /e /y
+    xcopy "%~dp0UltraVNC"   "%mnt%\UltraVNC\" /e /y
     
-    xcopy "%~dp0UltraVNC"   %mnt%\UltraVNC\ /e /y
+    xcopy "%~dp0Far"        "%mnt%\Far\"      /e /y
     
-    xcopy "%~dp0Far"        %mnt%\Far\      /e /y
+    xcopy "%~dp0..\scripts_helpers\debug\Debug-Mount_Z.cmd"  "%mnt%\" /y
+
+
+
+REM to be or not to be
     
-    xcopy "%~dp0..\scripts_helpers\debug\Debug-Mount_Z.cmd"  %mnt%\ /y
+    set /p action="1 - commit, 0 = discard: "
+    
+    if /i %action% EQU 1 (
+        
+        dism /unmount-wim /mountdir:%mnt% /commit
+    
+    ) else (
+        
+        dism /unmount-wim /mountdir:%mnt% /discard
+        
+        exit
+    
+    )
+
+
+
+REM compress and calculate MD5
+    if errorlevel 0 (
+        
+        ren "%wd%\amd64\media\sources\boot.wim" boot0.wim
+        
+        dism /Export-image /SourceImageFile:"%wd%\amd64\media\sources\boot0.wim" /SourceIndex:1 /DestinationImageFile:"%wd%\amd64\media\sources\boot.wim" /compress:max
+        
+        start "%wd%\amd64\media\sources\boot.wim.md5' /WAIT powershell -command "& {%~dp0Make-Wim_md5.ps1}"
+        
+        del "%wd%\amd64\media\sources\boot0.wim" /F /Q
+        
+        ) else ( pause )
+
+
+
+REM make iso-file
+    if errorlevel 0 (
+        
+        "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0Win10PE_x64_LTI_1_SINGLE.iso"
+
+    ) else ( pause )
+
+
+
+REM "МАТРЁШКА"
+
+REM     для скорейшего прохождения критического этапа, когда ЖД перезамечен, а загрузчика ещё нет, WinPE должна снова организовать собственную загрузку через RAM-диск, для этого на перезамеченный ЖД средствами модуля Wenix будут скопированы
+
+REM         загрузчик   X:\Windows\System32\Boot\*
+
+REM         файлы PE    X:\.IT\PE\*
+    
+    dism /Mount-Wim /WimFile:%wd%\%arc%\media\sources\boot.wim /index:1 /MountDir:%mnt%
+    
+    xcopy "%wd%\%arc%\media\sources\boot.wim" "%mnt%\.IT\PE\" /y
+    
+    xcopy "%wd%\%arc%\media\Boot\boot.sdi"    "%mnt%\.IT\PE\" /y
+    
+    xcopy "%~dp0..\scripts_helpers\Add-WinPE_RAMDisk_to_boot_menu_from_WINDOWS.cmd"  "%mnt%\.IT\PE\" /y
 
 
 
@@ -183,61 +240,11 @@ REM compress and calculate MD5
 
 
 
-REM make iso-file
-    if errorlevel 0 (
-        
-        "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0Win10PE_x64_LTI_1_SINGLE.iso"
-
-    ) else ( pause )
-
-
-
-
-REM "МАТРЁШКА"
-
-REM     для скорейшего прохождения критического этапа, когда ЖД перезамечен, а загрузчика ещё нет, WinPE должна снова организовать собственную загрузку через RAM-диск, для этого на перезамеченный ЖД средствами модуля Wenix будут скопированы
-
-REM         загрузчик   X:\Windows\System32\Boot\*
-
-REM         файлы PE    X:\.IT\PE\*
-    
-    dism /Mount-Wim /WimFile:%wd%\%arc%\media\sources\boot.wim /index:1 /MountDir:%mnt%
-    
-    xcopy "%wd%\%arc%\media\sources\boot.wim" "%mnt%\.IT\PE\" /y
-    xcopy "%wd%\%arc%\media\Boot\boot.sdi"    "%mnt%\.IT\PE\" /y
-    xcopy "%~dp0..\scripts_helpers\Add-WinPE_RAMDisk_to_boot_menu_from_WINDOWS.cmd"  "%mnt%\.IT\PE\" /y
-    
-    
-    if /i %action% EQU 1 (
-        
-        dism /unmount-wim /mountdir:%mnt% /commit
-    
-    ) else (
-        
-        dism /unmount-wim /mountdir:%mnt% /discard
-    
-    )
-    
-    
-REM compress and calculate MD5
-    if errorlevel 0 (
-        
-        ren "%wd%\amd64\media\sources\boot.wim" boot0.wim
-        
-        dism /Export-image /SourceImageFile:"%wd%\amd64\media\sources\boot0.wim" /SourceIndex:1 /DestinationImageFile:"%wd%\amd64\media\sources\boot.wim" /compress:max
-        
-        powershell -command "& {%~dp0Make-Wim_md5.ps1}"
-        
-        del "%wd%\amd64\media\sources\boot0.wim" /F /Q
-        
-        ) else ( pause )
-    
-    
 REM make 2nd iso
     if errorlevel 0 (
         
         "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0Win10PE_x64_LTI_2_DOUBLE.iso"
-
+    
     ) else ( pause )
     
     
