@@ -417,7 +417,6 @@ function Read-NetConfig
                 Start-Process -Wait -FilePath 'net.exe' -ArgumentList $add
                 
                 if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
-                # if (Test-Path $('filesystem::' + $s.netpath)) { $valid += $s }
                 
                 $del = 'use', $s.netpath, '/delete'
                 
