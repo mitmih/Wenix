@@ -162,9 +162,9 @@ if /i "%2"=="stop" (
             dism /unmount-wim /mountdir:%mnt% /discard
             
             exit
-        
     )
-)
+
+) else ( dism /unmount-wim /mountdir:%mnt% /commit )
 
 
 REM compress and calculate MD5
@@ -223,9 +223,9 @@ if /i "%2"=="stop" (
             dism /unmount-wim /mountdir:%mnt% /discard
             
             exit
-        
     )
-)
+
+) else ( dism /unmount-wim /mountdir:%mnt% /commit )
 
 
 
