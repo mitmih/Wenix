@@ -12,7 +12,7 @@
 RootModule = '.\Use-Wenix.psm1'
 
 # Номер версии данного модуля.
-ModuleVersion = '1.2.3.1'
+ModuleVersion = '1.2.3.0'
 
 # Поддерживаемые выпуски PSEditions
 # CompatiblePSEditions = @()
