@@ -174,7 +174,7 @@ REM compress and calculate MD5
         
         dism /Export-image /SourceImageFile:"%wd%\amd64\media\sources\boot0.wim" /SourceIndex:1 /DestinationImageFile:"%wd%\amd64\media\sources\boot.wim" /compress:max
         
-        start "%wd%\amd64\media\sources\boot.wim.md5' /WAIT powershell -command "& {%~dp0Make-Wim_md5.ps1}"
+        powershell -command "& {%~dp0Make-Wim_md5.ps1}"
         
         del "%wd%\amd64\media\sources\boot0.wim" /F /Q
         
@@ -220,6 +220,8 @@ REM to be or not to be
     ) else (
         
         dism /unmount-wim /mountdir:%mnt% /discard
+        
+        exit
     
     )
 
