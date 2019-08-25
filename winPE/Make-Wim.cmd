@@ -148,23 +148,23 @@ REM добавление в корень системного диска WinPE: 
     xcopy "%~dp0..\scripts_helpers\debug\Debug-Mount_Z.cmd"  "%mnt%\" /y
 
 
-
-REM to be or not to be
-    
-    set /p action="1 - commit, 0 = discard: "
-    
-    if /i %action% EQU 1 (
+if /i "%2"=="stop" (
+    REM to be or not to be
         
-        dism /unmount-wim /mountdir:%mnt% /commit
-    
-    ) else (
+        set /p action="1 - commit, 0 = discard: "
         
-        dism /unmount-wim /mountdir:%mnt% /discard
+        if /i %action% EQU 1 (
+            
+            dism /unmount-wim /mountdir:%mnt% /commit
         
-        exit
-    
+        ) else (
+            
+            dism /unmount-wim /mountdir:%mnt% /discard
+            
+            exit
+        
     )
-
+)
 
 
 REM compress and calculate MD5
@@ -178,7 +178,7 @@ REM compress and calculate MD5
         
         del "%wd%\amd64\media\sources\boot0.wim" /F /Q
         
-        ) else ( pause )
+    ) else ( pause )
 
 
 
@@ -209,21 +209,23 @@ REM         файлы PE    X:\.IT\PE\*
 
 
 
-REM to be or not to be
-    
-    set /p action="1 - commit, 0 = discard: "
-    
-    if /i %action% EQU 1 (
+if /i "%2"=="stop" (
+    REM to be or not to be
         
-        dism /unmount-wim /mountdir:%mnt% /commit
-    
-    ) else (
+        set /p action="1 - commit, 0 = discard: "
         
-        dism /unmount-wim /mountdir:%mnt% /discard
+        if /i %action% EQU 1 (
+            
+            dism /unmount-wim /mountdir:%mnt% /commit
         
-        exit
-    
+        ) else (
+            
+            dism /unmount-wim /mountdir:%mnt% /discard
+            
+            exit
+        
     )
+)
 
 
 
