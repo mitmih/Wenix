@@ -144,9 +144,9 @@ REM добавление в корень системного диска WinPE:
     
     xcopy "%~dp0..\Wenix"    %mnt%\Windows\System32\config\systemprofile\Documents\Modules\  /e /y
     
-    xcopy "%~dp0Far"        %mnt%\Far\      /e /y
-    
     xcopy "%~dp0UltraVNC"   %mnt%\UltraVNC\ /e /y
+    
+    xcopy "%~dp0Far"        %mnt%\Far\      /e /y
     
     xcopy "%~dp0..\scripts_helpers\debug\Debug-Mount_Z.cmd"  %mnt%\ /y
 
