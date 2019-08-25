@@ -6,7 +6,7 @@
 .~lock.*.*#
 ~$*.xlsx
 
-Far/
+# Far/
 !Far/Far.exe.ini
 
 UltraVNC/
