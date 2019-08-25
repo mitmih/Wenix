@@ -1,4 +1,5 @@
-function Show-Menu {
+function Show-Menu
+{
 <#
 .SYNOPSIS
     Show possible actions menu
@@ -61,7 +62,8 @@ function Show-Menu {
 }
 
 
-function Test-Disk {
+function Test-Disk
+{
     param ()
     
     begin
@@ -109,7 +111,8 @@ function Test-Disk {
 }
 
 
-function Test-Wim {
+function Test-Wim
+{
     
     [CmdletBinding()]
     
@@ -351,7 +354,66 @@ function Mount-Standart
 }
 
 
-function Use-Wenix {
+function Find-NetConfig
+{
+    param ()
+    
+    
+    begin { $res = $null }
+    
+    process
+    {
+        foreach ($v in (Get-Volume) )
+        {
+            $p = $v.DriveLetter + ':\.IT\PE\NetConfig.csv'
+            
+            if (Test-Path -Path $p)
+            {
+                $res = Get-Item -Path C:\.IT\PE\NetConfig.csv
+                
+                break
+            }
+        }
+    }
+    
+    end { return $res }
+}
+
+
+function Read-NetConfig
+{
+    param ($file)
+    
+    
+    begin
+    {
+        $shares = @() + (Import-Csv -Path $file)
+    }
+    
+    process
+    {
+        foreach ($s in $shares)
+        {
+            $s
+        }
+    }
+    
+    end
+    { return $null }
+}
+
+
+function FunctionName
+{
+    param ()
+    begin {}
+    process {}
+    end {}
+}
+
+
+function Use-Wenix
+{
     param ()
     
     begin { $log = [ordered]@{} }
