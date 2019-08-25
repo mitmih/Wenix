@@ -412,15 +412,20 @@ function Read-NetConfig
         {
             if (Test-Connection -Quiet -Count 3 -ComputerName $s.netpath.Split('\')[2])
             {
-                $add = 'use', $s.netpath, $s.password, "/user:$($s.user)"
+                $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
                 
-                Start-Process -Wait -FilePath 'net.exe' -ArgumentList $add
+                
+                $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $s.netpath -Credential $cred
                 
                 if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
                 
-                $del = 'use', $s.netpath, '/delete'
+                $drive | Remove-PSDrive
                 
-                Start-Process -FilePath 'net.exe' -ArgumentList $del -
+                # $add = 'use', $s.netpath, $s.password, "/user:$($s.user)"
+                # Start-Process -Wait -FilePath 'net.exe' -ArgumentList $add
+                # if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
+                # $del = 'use', $s.netpath, '/delete'
+                # Start-Process -FilePath 'net.exe' -ArgumentList $del -
             }
         }
     }
@@ -429,7 +434,16 @@ function Read-NetConfig
 }
 
 
-function FunctionName
+function f1
+{
+    param ()
+    begin {}
+    process {}
+    end {}
+}
+
+
+function f2
 {
     param ()
     begin {}
