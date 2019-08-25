@@ -113,7 +113,6 @@ function Test-Disk
 
 function Test-Wim
 {
-    
     [CmdletBinding()]
     
     param ( $label, $ver, [switch] $md5 = $false)
@@ -365,7 +364,7 @@ function Find-NetConfig
     {
         foreach ($v in (Get-Volume) )
         {
-            $p = $v.DriveLetter + ':\.IT\PE\NetConfig.csv'
+            $p = $v.DriveLetter + ':\.IT\PE\BootStrap.csv'
             
             if (Test-Path -Path $p)
             {
@@ -402,44 +401,109 @@ function Read-NetConfig
         {
             if (($item.Context.PostContext[1].Split(':')[1].Trim()).Length -gt 0) { $GWs += $item.Context.PostContext[1].Split(':')[1].Trim() }
         }
-        
-        foreach ($gw in $GWs) { $shares += Import-Csv -Path $file | Where-Object { $_.gw -match $gw} }
     }
     
     process
     {
-        foreach ($s in $shares)
+        try
         {
-            if (Test-Connection -Quiet -Count 3 -ComputerName $s.netpath.Split('\')[2])
+            foreach ($gw in $GWs) { $shares += Import-Csv -Path $file -ErrorAction Stop | Where-Object { $_.gw -match $gw} }
+            
+            foreach ($s in $shares)
             {
-                $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
-                
-                
-                $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $s.netpath -Credential $cred
-                
-                if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
-                
-                $drive | Remove-PSDrive
-                
-                # $add = 'use', $s.netpath, $s.password, "/user:$($s.user)"
-                # Start-Process -Wait -FilePath 'net.exe' -ArgumentList $add
-                # if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
-                # $del = 'use', $s.netpath, '/delete'
-                # Start-Process -FilePath 'net.exe' -ArgumentList $del -
+                if (Test-Connection -Quiet -Count 3 -ComputerName $s.netpath.Split('\')[2])
+                {
+                    $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
+                    
+                    
+                    $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $s.netpath -Credential $cred -ErrorAction Stop
+                    
+                    if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
+                    
+                    $drive | Remove-PSDrive
+                    
+                    # $add = 'use', $s.netpath, $s.password, "/user:$($s.user)"
+                    # Start-Process -Wait -FilePath 'net.exe' -ArgumentList $add
+                    # if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
+                    # $del = 'use', $s.netpath, '/delete'
+                    # Start-Process -FilePath 'net.exe' -ArgumentList $del -
+                }
             }
         }
+        
+        catch {}
     }
     
     end { return $valid }
 }
 
 
-function f1
+function Test-WimNet
 {
-    param ()
-    begin {}
-    process {}
-    end {}
+    [CmdletBinding()]
+    
+    param ( $NetPath, $ver, [switch] $md5 = $false)
+    
+    begin
+    {
+        $CheckList = [ordered]@{}
+        
+        try ###########################################################################################################
+        {
+            if ([System.IO.Directory]::Exists($NetPath + '\.IT\PE'))   { $PE = $NetPath + '\.IT\PE' }
+            
+            if ([System.IO.Directory]::Exists($NetPath + "\.IT\$ver")) { $OS = $NetPath + "\.IT\$ver" }
+        }
+        
+        catch { $CheckList['begin'] = $false }
+    }
+    
+    process
+    {
+        $CheckList["exist PE    boot.wim"] = Test-Path -Path "$PE\boot.wim"
+        
+        $CheckList["exist OS install.wim"] = Test-Path -Path "$OS\install.wim"
+        
+        if ($md5)
+        {
+            $PEmd5calc = Get-FileHash -Path "$PE\boot.wim" -Algorithm MD5
+            
+            $PEmd5real = Get-Content -Path "$PE\boot.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
+            
+            $CheckList["MD5   PE    boot.wim"] = $PEmd5real -imatch $PEmd5calc.Hash
+            
+            
+            $OSmd5calc = Get-FileHash -Path "$OS\install.wim" -Algorithm MD5
+            
+            $OSmd5real = Get-Content -Path "$OS\install.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
+            
+            $CheckList["MD5   OS install.wim"] = $OSmd5real -imatch $OSmd5calc.Hash
+        }
+    }
+    
+    end
+    {
+        if ($CheckList.Values -contains $true)
+        {
+            Write-Host '    files checks OK                 ' -BackgroundColor DarkGreen
+            $CheckList.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
+        }
+        
+        if ($CheckList.Values -contains $false)
+        {
+            Write-Host '    files checks FAILED             ' -BackgroundColor DarkRed
+            $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
+        }
+        
+        if ($CheckList.count -gt 0)
+        {
+            return ($CheckList.Values -notcontains $false)
+        }
+        else
+        {
+            return $false
+        }
+    }
 }
 
 
