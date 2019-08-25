@@ -80,7 +80,20 @@ REM очистка на случай если остались какие-то �
         
         REM копируем winpe
         
-        call "%wpe%\copype.cmd" %arc% "%wd%\%arc%"
+            call "%wpe%\copype.cmd" %arc% "%wd%\%arc%"
+            
+            
+        REM чтобы ускорить сборку, положим рядом с этим скриптом готовый boot.wim с пакетами и назовём его boot.wim.clear
+            
+            if exist "%~dp0boot.wim.clear" (
+                
+                del "%wd%\amd64\media\sources\boot.wim" /F /Q
+                
+                xcopy "%~dp0boot.wim.clear"  "%wd%\amd64\media\sources\" /y
+                
+                ren "%wd%\amd64\media\sources\boot.wim.clear" boot.wim
+                
+            )
     )
     
     if errorlevel 1 (pause && exit)
@@ -103,34 +116,41 @@ REM установка доп. пакетов, порядок важен!
     
     if /i "%1"=="clear" (
         
-        dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-wmi.cab"
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\Winpe_OCS\en-us\WinPE-WMI_en-us.cab"
-        
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-netfx.cab"
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\Winpe_OCS\en-us\WinPE-NetFx_en-us.cab"
-        
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-Scripting.cab"
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\Winpe_OCS\en-us\WinPE-Scripting_en-us.cab"
-        
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-PowerShell.cab"
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\en-us\WinPE-PowerShell_en-us.cab"
-        
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-DismCmdlets.cab"
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\en-us\WinPE-DismCmdlets_en-us.cab"
-        
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-StorageWMI.cab"
-        
-        dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\en-us\WinPE-StorageWMI_en-us.cab"
+        if exist "%~dp0boot.wim.clear" (
+            
+            echo NOT NEED TO INSTALL PACKAGES
+            
+        ) else (
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-wmi.cab"
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\Winpe_OCS\en-us\WinPE-WMI_en-us.cab"
+            
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-netfx.cab"
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\Winpe_OCS\en-us\WinPE-NetFx_en-us.cab"
+            
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-Scripting.cab"
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\Winpe_OCS\en-us\WinPE-Scripting_en-us.cab"
+            
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-PowerShell.cab"
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\en-us\WinPE-PowerShell_en-us.cab"
+            
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-DismCmdlets.cab"
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\en-us\WinPE-DismCmdlets_en-us.cab"
+            
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\WinPE-StorageWMI.cab"
+            
+            dism /image:%mnt% /add-package /packagepath:"%cab%\WinPE_OCs\en-us\WinPE-StorageWMI_en-us.cab"
+        )
     )
 
 
