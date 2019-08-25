@@ -6,18 +6,13 @@
 .~lock.*.*#
 ~$*.xlsx
 
-!Far/Far.exe.ini
 Far/
-Far/*/*
-Far/Addons/*
-Far/Documentation/*
-Far/Encyclopedia/*
-Far/Plugins/*
-Far/PluginSDK/*
-Far/Profile/*
+Far/Far.exe.ini
 
-UltraVNC/*
-!UltraVNC/UltraVNC.ini
+
+
+/winPE/UltraVNC
+!/winPE/UltraVNC/UltraVNC.ini
 
 .pe_mount_point/
 .pe_work_dir/
