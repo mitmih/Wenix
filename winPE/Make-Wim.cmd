@@ -83,15 +83,15 @@ REM очистка на случай если остались какие-то �
             call "%wpe%\copype.cmd" %arc% "%wd%\%arc%"
             
             
-        REM чтобы ускорить сборку, положим рядом с этим скриптом готовый boot.wim с пакетами и назовём его boot.wim.clear
+        REM чтобы ускорить сборку, положим рядом с этим скриптом готовый boot.wim с пакетами и назовём его clear.wim
             
-            if exist "%~dp0boot.wim.clear" (
+            if exist "%~dp0clear.wim" (
                 
                 del "%wd%\amd64\media\sources\boot.wim" /F /Q
                 
-                xcopy "%~dp0boot.wim.clear"  "%wd%\amd64\media\sources\" /y
+                xcopy "%~dp0clear.wim"  "%wd%\amd64\media\sources\" /y
                 
-                ren "%wd%\amd64\media\sources\boot.wim.clear" boot.wim
+                ren "%wd%\amd64\media\sources\clear.wim" boot.wim
                 
             )
     )
@@ -116,7 +116,7 @@ REM установка доп. пакетов, порядок важен!
     
     if /i "%1"=="clear" (
         
-        if exist "%~dp0boot.wim.clear" (
+        if exist "%~dp0clear.wim" (
             
             echo NOT NEED TO INSTALL PACKAGES
             
