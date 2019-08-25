@@ -7,12 +7,10 @@
 ~$*.xlsx
 
 Far/
-Far/Far.exe.ini
+!Far/Far.exe.ini
 
-
-
-/winPE/UltraVNC
-!/winPE/UltraVNC/UltraVNC.ini
+UltraVNC/
+!UltraVNC/UltraVNC.ini
 
 .pe_mount_point/
 .pe_work_dir/
