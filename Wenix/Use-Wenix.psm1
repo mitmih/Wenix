@@ -104,7 +104,7 @@ function Test-Disk {
             $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
         }
         
-        if ($CheckList.count -gt 0) { return ($CheckList.Values -notcontains $false) } else { return $false }
+        if ($CheckList.count -gt 0) { return ($CheckList.Values -notcontains $false) } # else { return $false }
     }
 }
 

@@ -1,0 +1,10 @@
+конфиг на запуск оболочки PowerShell как default shell
+.\.pe_mount_point\Windows\System32\winpeshl.ini
+
+
+профиль, горячие клавиши
+.\.pe_mount_point\Windows\System32\config\systemprofile\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+
+
+история консольных команд
+.\.pe_mount_point\Windows\System32\config\systemprofile\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadline\ConsoleHost_history.txt

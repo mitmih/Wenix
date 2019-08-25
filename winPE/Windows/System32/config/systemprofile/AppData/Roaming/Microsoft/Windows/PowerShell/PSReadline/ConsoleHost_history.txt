@@ -1,0 +1,8 @@
+Start-Process $env:SystemDrive\Far\Far.exe -ArgumentList "$env:windir\Logs $env:SystemDrive\"
+./Capture-Wim.ps1
+Get-CimInstance win32_logicaldisk -Filter "deviceID = 'd:'" |`
+Set-CimInstance -Property @{volumename = 'win 10'}
+Get-PSDrive -PSProvider FileSystem | Select-Object Name, Root, Description, Free, Used | Format-Table -AutoSize
+Get-Module -Name Wenix | Remove-Module`
+Import-Module -Force Wenix`
+Use-Wenix

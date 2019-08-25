@@ -1,17 +1,29 @@
 @echo off && cls && echo Author Dmitriy Mikhaylov aka alt-air && chcp 65001>nul && echo.
 
 
-REM запускать с того же диска, где лежат файлы winPE для загрузки через RAM disk
+REM скрипт добавляет загрузку winPE c RAM-диска в конфиг bootmgr`а (BCD)
+
+REM запускать с той же папки, где лежит winPE boot.wim
 
 
 echo Настройка PXE-сервера для загрузки WindowsPE
+
 echo https://docs.microsoft.com/ru-ru/windows/deployment/configure-a-pxe-server-to-load-windows-pe
+
 echo.
+
+
 echo How to boot a Vista system from a locally stored WIM file
+
 echo https://blog.nextxpert.com/2007/05/09/how-to-boot-a-vista-system-from-a-locally-stored-wim-file/
+
 echo.
+
+
 echo Create a Windows Vista/WinPE dual boot
+
 echo https://blogs.technet.microsoft.com/guillaumed/2008/03/15/create-a-windows-vistawinpe-dual-boot/
+
 echo.
 
 
@@ -56,9 +68,6 @@ REM make OS loader object
 REM add the new boot entry to the boot menu
     
     bcdedit /displayorder %GUID% /addlast
-
-
-REM bcdedit /enum all
 
 
 if errorlevel 1 (pause && exit)
