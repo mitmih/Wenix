@@ -201,7 +201,7 @@ REM         файлы PE    X:\.IT\PE\*
     
     dism /Mount-Wim /WimFile:%wd%\%arc%\media\sources\boot.wim /index:1 /MountDir:%mnt%
     
-    xcopy "%wd%\%arc%\media\sources\boot.wim" "%mnt%\.IT\PE\" /y
+    xcopy "%wd%\%arc%\media\sources\boot*" "%mnt%\.IT\PE\" /y
     
     xcopy "%wd%\%arc%\media\Boot\boot.sdi"    "%mnt%\.IT\PE\" /y
     
@@ -248,6 +248,3 @@ REM make 2nd iso
         "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0Win10PE_x64_LTI_2_DOUBLE.iso"
     
     ) else ( pause )
-    
-    
-    REM 
