@@ -5,13 +5,18 @@ $file = Find-NetConfig
 $shares = @()
 if ($null -ne $file) { $shares += Read-NetConfig -file $file } # else { $shares = @() }
 
-$ok = @{}
+# $ok = @{} ; $ver = '10' ; $name = 'install'
 if ($shares.Count -gt 0)
 {
-    for ($i = 0; $i -lt $shares.Count; $i++)
-    {
-        $ok[$i] = Test-WimNet -NetPath $shares[$i].netpath
-    }
+    # PE
+    $ver = 'PE' ; $name = 'boot'
+    $PEshares = Test-WimNet -SharesList $shares -ver $ver -name $name -md5
+    
+    # OS
+    $ver = '10' ; $name = 'install'
+    $OSshares = Test-WimNet -SharesList $shares -ver $ver -name $name -md5
 }
 
-$ok
+$PEshares
+"`n"
+$OSshares
