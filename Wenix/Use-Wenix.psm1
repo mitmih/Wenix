@@ -415,7 +415,6 @@ function Read-NetConfig
                 {
                     $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
                     
-                    
                     $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $s.netpath -Credential $cred -ErrorAction Stop
                     
                     if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
@@ -442,68 +441,64 @@ function Test-WimNet
 {
     [CmdletBinding()]
     
-    param ( $NetPath, $ver, [switch] $md5 = $false)
+    param ( $SharesList, $ver, $name, [switch] $md5 = $false)
     
-    begin
-    {
-        $CheckList = [ordered]@{}
-        
-        try ###########################################################################################################
-        {
-            if ([System.IO.Directory]::Exists($NetPath + '\.IT\PE'))   { $PE = $NetPath + '\.IT\PE' }
-            
-            if ([System.IO.Directory]::Exists($NetPath + "\.IT\$ver")) { $OS = $NetPath + "\.IT\$ver" }
-        }
-        
-        catch { $CheckList['begin'] = $false }
-    }
+    begin { $valid = @() }
     
     process
     {
-        $CheckList["exist PE    boot.wim"] = Test-Path -Path "$PE\boot.wim"
-        
-        $CheckList["exist OS install.wim"] = Test-Path -Path "$OS\install.wim"
-        
-        if ($md5)
+        foreach ($s in $SharesList)
         {
-            $PEmd5calc = Get-FileHash -Path "$PE\boot.wim" -Algorithm MD5
+            $CheckListWim = [ordered]@{}
             
-            $PEmd5real = Get-Content -Path "$PE\boot.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
+            $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
             
-            $CheckList["MD5   PE    boot.wim"] = $PEmd5real -imatch $PEmd5calc.Hash
+            $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $s.netpath -Credential $cred -ErrorAction Stop
+            
+            $OS = $s.netpath + "\.IT\$ver"
+            
+            $s | Add-Member -MemberType NoteProperty -Name 'file' -Value (Test-Path -Path "$OS\$name.wim")
+            
+            $CheckListWim[("exist`t$name.wim " + $s.netpath)] = $s.file
+            
+            if ($md5)
+            {
+                $md5calc = Get-FileHash -Path "$OS\$name.wim" -Algorithm MD5
+                
+                $md5real = Get-Content -Path "$OS\$name.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
+                
+                $s | Add-Member -MemberType NoteProperty -Name 'md5' -Value ($md5real -imatch $md5calc.Hash)
+                
+                $CheckListWim[("MD5`t`t$name.wim " + $s.netpath)] = $s.md5
+            }
+            else
+            {
+                $s | Add-Member -MemberType NoteProperty -Name 'md5' -Value $true
+                
+                $CheckListWim[("MD5`t`t$name.wim " + $s.netpath)] = $s.md5
+            }
             
             
-            $OSmd5calc = Get-FileHash -Path "$OS\install.wim" -Algorithm MD5
+            if ($CheckListWim.Values -contains $true)
+            {
+                Write-Host "    files checks OK                 $($s.netpath)" -BackgroundColor DarkGreen
+                $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
+            }
             
-            $OSmd5real = Get-Content -Path "$OS\install.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
+            if ($CheckListWim.Values -contains $false)
+            {
+                Write-Host "    files checks FAILED             $($s.netpath)" -BackgroundColor DarkRed
+                $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
+            }
             
-            $CheckList["MD5   OS install.wim"] = $OSmd5real -imatch $OSmd5calc.Hash
+            
+            $valid += $s | Where-Object {$_.file -eq $true -and $_.md5 -eq $true}
+            
+            $drive | Remove-PSDrive
         }
     }
     
-    end
-    {
-        if ($CheckList.Values -contains $true)
-        {
-            Write-Host '    files checks OK                 ' -BackgroundColor DarkGreen
-            $CheckList.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
-        }
-        
-        if ($CheckList.Values -contains $false)
-        {
-            Write-Host '    files checks FAILED             ' -BackgroundColor DarkRed
-            $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
-        }
-        
-        if ($CheckList.count -gt 0)
-        {
-            return ($CheckList.Values -notcontains $false)
-        }
-        else
-        {
-            return $false
-        }
-    }
+    end { return $valid }
 }
 
 
