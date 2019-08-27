@@ -89,7 +89,13 @@ Get-PSDrive -PSProvider FileSystem | Select-Object Name, Root, Description, Free
 
 # Write-Host -ForegroundColor Red     "Alt + Ctrl + i to capture $inp to $out$wimFile AND SHUTDOWN"
 
+Start-Process -FilePath "$env:SystemRoot\System32\startnet.cmd"
+
 Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
+
+# Start-Process -FilePath "$env:SystemDrive\UltraVNC\winvnc.exe"
+# Start-Process -FilePath 'wpeutil' -ArgumentList 'InitializeNetwork', '/NoWait'
+# Start-Process -FilePath 'wpeutil' -ArgumentList 'DisableFirewall'
 
 
 
