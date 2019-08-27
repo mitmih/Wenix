@@ -103,6 +103,10 @@ REM очистка на случай если остались какие-то �
 REM монтаж
     
     dism /Mount-Wim /WimFile:%wd%\%arc%\media\sources\boot.wim /index:1 /MountDir:%mnt%
+    
+    dism /image:%mnt% /Get-ScratchSpace
+    
+    dism /image:%mnt% /Set-ScratchSpace:512
 
 
 
@@ -210,44 +214,52 @@ REM make iso-file
 
 
 
-REM "МАТРЁШКА"
 
-REM     для скорейшего прохождения критического этапа, когда ЖД перезамечен, а загрузчика ещё нет, WinPE должна снова организовать собственную загрузку через RAM-диск, для этого на перезамеченный ЖД средствами модуля Wenix будут скопированы
+REM "МАТРЁШКА" скорее всего не понадобится, т.к. можно выделить до 512 МБ на ram-диске параметром
+REM     dism /image:%mnt% /Set-ScratchSpace:512
+REM для копирования boot.wim в X:\.IT\PE\boot.wim ДО переразбивки и обратного копирования на ЖД сразу ПОСЛЕ,
+REM чтобы как можно скорее заново прописать ram-диск в загрузочное меню и тем самым пройти опасный этап,
+REM когда комп перестаёт грузиться в PE из-за переразметки диска
 
-REM         загрузчик   X:\Windows\System32\Boot\*
 
-REM         файлы PE    X:\.IT\PE\*
+REM REM "МАТРЁШКА"
+
+REM REM     для скорейшего прохождения критического этапа, когда ЖД перезамечен, а загрузчика ещё нет, WinPE должна снова организовать собственную загрузку через RAM-диск, для этого на перезамеченный ЖД средствами модуля Wenix будут скопированы
+
+REM REM         загрузчик   X:\Windows\System32\Boot\*
+
+REM REM         файлы PE    X:\.IT\PE\*
     
-    dism /Mount-Wim /WimFile:%wd%\%arc%\media\sources\boot.wim /index:1 /MountDir:%mnt%
+REM     dism /Mount-Wim /WimFile:%wd%\%arc%\media\sources\boot.wim /index:1 /MountDir:%mnt%
     
-    xcopy "%wd%\%arc%\media\sources\boot*" "%mnt%\.IT\PE\" /y
+REM     xcopy "%wd%\%arc%\media\sources\boot*" "%mnt%\.IT\PE\" /y
     
-    xcopy "%wd%\%arc%\media\Boot\boot.sdi"    "%mnt%\.IT\PE\" /y
+REM     xcopy "%wd%\%arc%\media\Boot\boot.sdi"    "%mnt%\.IT\PE\" /y
     
-    xcopy "%~dp0..\scripts_helpers\Add-WinPE_RAMDisk_to_boot_menu_from_WINDOWS.cmd"  "%mnt%\.IT\PE\" /y
+REM     xcopy "%~dp0..\scripts_helpers\Add-WinPE_RAMDisk_to_boot_menu_from_WINDOWS.cmd"  "%mnt%\.IT\PE\" /y
     
-    dism /unmount-wim /mountdir:%mnt% /commit
+REM     dism /unmount-wim /mountdir:%mnt% /commit
 
 
 
-REM compress and calculate MD5
-    if errorlevel 0 (
+REM REM compress and calculate MD5
+REM     if errorlevel 0 (
         
-        ren "%wd%\amd64\media\sources\boot.wim" boot0.wim
+REM         ren "%wd%\amd64\media\sources\boot.wim" boot0.wim
         
-        dism /Export-image /SourceImageFile:"%wd%\amd64\media\sources\boot0.wim" /SourceIndex:1 /DestinationImageFile:"%wd%\amd64\media\sources\boot.wim" /compress:max
+REM         dism /Export-image /SourceImageFile:"%wd%\amd64\media\sources\boot0.wim" /SourceIndex:1 /DestinationImageFile:"%wd%\amd64\media\sources\boot.wim" /compress:max
         
-        powershell -command "& {%~dp0Make-Wim_md5.ps1}"
+REM         powershell -command "& {%~dp0Make-Wim_md5.ps1}"
         
-        del "%wd%\amd64\media\sources\boot0.wim" /F /Q
+REM         del "%wd%\amd64\media\sources\boot0.wim" /F /Q
         
-        ) else ( pause )
+REM         ) else ( pause )
 
 
 
-REM make 2nd iso
-    if errorlevel 0 (
+REM REM make 2nd iso
+REM     if errorlevel 0 (
         
-        "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0Win10PE_x64_LTI_2_DOUBLE.iso"
+REM         "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0Win10PE_x64_LTI_2_DOUBLE.iso"
     
-    ) else ( pause )
+REM     ) else ( pause )
