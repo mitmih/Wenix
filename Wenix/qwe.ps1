@@ -14,7 +14,7 @@ if ($shares.Count -gt 0)
     
     # OS
     $ver = '10' ; $name = 'install'
-    $OSshares = Test-WimNet -SharesList $shares -ver $ver -name $name -md5:$false
+    $OSshares = Test-WimNet -SharesList $shares -ver $ver -name $name -md5 #:$false
 }
 
 $PEshares, $OSshares | ft *
