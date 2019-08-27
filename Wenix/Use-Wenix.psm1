@@ -457,9 +457,12 @@ function Test-WimNet
             
             $OS = $s.netpath + "\.IT\$ver"
             
-            $s | Add-Member -MemberType NoteProperty -Name 'file' -Value (Test-Path -Path "$OS\$name.wim")
+            # $s | Add-Member -Force -MemberType NoteProperty -Name 'file' -Value (Test-Path -Path "$OS\$name.wim")
+            $v = $s | Select-Object -Property *, file, md5
             
-            $CheckListWim[("exist`t$name.wim " + $s.netpath)] = $s.file
+            $v.file = Test-Path -Path "$OS\$name.wim"
+            
+            $CheckListWim[("$name wim`t" + $s.netpath)] = $v.file
             
             if ($md5)
             {
@@ -467,32 +470,34 @@ function Test-WimNet
                 
                 $md5real = Get-Content -Path "$OS\$name.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
                 
-                $s | Add-Member -MemberType NoteProperty -Name 'md5' -Value ($md5real -imatch $md5calc.Hash)
+                # $s | Add-Member -Force -MemberType NoteProperty -Name 'md5' -Value ($md5real -imatch $md5calc.Hash)
+                $v.md5 = $md5real -imatch $md5calc.Hash
                 
-                $CheckListWim[("MD5`t`t$name.wim " + $s.netpath)] = $s.md5
+                $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5
             }
             else
             {
-                $s | Add-Member -MemberType NoteProperty -Name 'md5' -Value $true
+                # $s | Add-Member -Force -MemberType NoteProperty -Name 'md5' -Value $true
+                $v.md5 = $true
                 
-                $CheckListWim[("MD5`t`t$name.wim " + $s.netpath)] = $s.md5
+                $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5
             }
             
             
             if ($CheckListWim.Values -contains $true)
             {
-                Write-Host "    files checks OK                 $($s.netpath)" -BackgroundColor DarkGreen
+                Write-Host "    wim checks       OK             $($s.netpath)" -BackgroundColor DarkGreen
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
             }
             
             if ($CheckListWim.Values -contains $false)
             {
-                Write-Host "    files checks FAILED             $($s.netpath)" -BackgroundColor DarkRed
+                Write-Host "    wim checks   FAILED             $($s.netpath)" -BackgroundColor DarkRed
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
             }
             
             
-            $valid += $s | Where-Object {$_.file -eq $true -and $_.md5 -eq $true}
+            $valid += $v | Where-Object {$_.file -eq $true -and $_.md5 -eq $true}
             
             $drive | Remove-PSDrive
         }
