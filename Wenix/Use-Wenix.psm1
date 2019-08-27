@@ -136,16 +136,16 @@ function Test-Wim
         {
             $PEmd5calc = Get-FileHash -Path "$PE\boot.wim" -Algorithm MD5
             
-            $PEmd5real = Get-Content -Path "$PE\boot.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
+            $PEmd5file = Get-Content -Path "$PE\boot.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
             
-            $CheckList["MD5   PE    boot.wim"] = $PEmd5real -imatch $PEmd5calc.Hash
+            $CheckList["MD5   PE    boot.wim"] = $PEmd5file -imatch $PEmd5calc.Hash
             
             
             $OSmd5calc = Get-FileHash -Path "$OS\install.wim" -Algorithm MD5
             
-            $OSmd5real = Get-Content -Path "$OS\install.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
+            $OSmd5file = Get-Content -Path "$OS\install.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
             
-            $CheckList["MD5   OS install.wim"] = $OSmd5real -imatch $OSmd5calc.Hash
+            $CheckList["MD5   OS install.wim"] = $OSmd5file -imatch $OSmd5calc.Hash
         }
     }
     
@@ -397,6 +397,8 @@ function Read-NetConfig
         
         $GWs = @()  # список ip-адресов шлюзов, 
         
+        # Start-Process -FilePath 'wpeutil' -ArgumentList 'WaitForNetwork' -Wait  # ожидание инициализации сети
+        
         foreach ($item in (ipconfig | Select-String -Pattern 'ipv4' -Context 0,2))
         {
             if (($item.Context.PostContext[1].Split(':')[1].Trim()).Length -gt 0) { $GWs += $item.Context.PostContext[1].Split(':')[1].Trim() }
@@ -420,12 +422,6 @@ function Read-NetConfig
                     if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
                     
                     $drive | Remove-PSDrive
-                    
-                    # $add = 'use', $s.netpath, $s.password, "/user:$($s.user)"
-                    # Start-Process -Wait -FilePath 'net.exe' -ArgumentList $add
-                    # if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
-                    # $del = 'use', $s.netpath, '/delete'
-                    # Start-Process -FilePath 'net.exe' -ArgumentList $del -
                 }
             }
         }
@@ -457,8 +453,10 @@ function Test-WimNet
             
             $OS = $s.netpath + "\.IT\$ver"
             
-            $v = $s | Select-Object -Property *, file, md5  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty уже существует
+            $v = $s | Select-Object -Property *, 'ver', 'name', 'file', 'md5'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty   w3уже существует
             
+            $v.ver = $ver
+            $v.name = "$name.wim"
             $v.file = Test-Path -Path "$OS\$name.wim"
             
             $CheckListWim[("$name wim`t" + $s.netpath)] = $v.file
@@ -467,9 +465,9 @@ function Test-WimNet
             {
                 $md5calc = Get-FileHash -Path "$OS\$name.wim" -Algorithm MD5
                 
-                $md5real = Get-Content -Path "$OS\$name.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
+                $md5file = (Get-Content -Path "$OS\$name.wim.md5" | Select-String -Pattern "$name.wim").ToString().Split(' ')[0] #'^[a-zA-Z0-9]'
                 
-                $v.md5 = $md5real -imatch $md5calc.Hash
+                $v.md5 = $md5file -ieq $md5calc.Hash
                 
                 $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5
             }
@@ -483,13 +481,13 @@ function Test-WimNet
             
             if ($CheckListWim.Values -contains $true)  # вывод в консоль успешных проверок
             {
-                Write-Host "    wim checks       OK             $($s.netpath)" -BackgroundColor DarkGreen
+                Write-Host "    OK     $ver   $name.wim   $($s.netpath)    " -BackgroundColor DarkGreen
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
             }
             
             if ($CheckListWim.Values -contains $false)  # вывод проваленных проверок
             {
-                Write-Host "    wim checks   FAILED             $($s.netpath)" -BackgroundColor DarkRed
+                Write-Host "    FAIL   $ver   $name.wim   $($s.netpath)    " -BackgroundColor DarkRed
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
             }
             
