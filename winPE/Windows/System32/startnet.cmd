@@ -1,7 +1,8 @@
 REM wpeinit
 
 
-wpeutil InitializeNetwork /NoWait
+wpeutil InitializeNetwork
+REM /NoWait
 
 wpeutil DisableFirewall
 
