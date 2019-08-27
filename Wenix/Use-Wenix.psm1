@@ -453,11 +453,23 @@ function Test-WimNet
             
             $OS = $s.netpath + "\.IT\$ver"
             
-            $v = $s | Select-Object -Property *, 'ver', 'name', 'file', 'md5'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty   w3уже существует
+            $v = $s | Select-Object -Property *, 'ver', 'name', 'file', 'md5', 'date1rec', 'date2mod', 'date3acc'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty   w3уже существует
             
             $v.ver = $ver
+            
             $v.name = "$name.wim"
+            
             $v.file = Test-Path -Path "$OS\$name.wim"
+            
+            
+            $file = Get-Item -Path "$OS\$name.wim"
+            
+            $v.date1rec = $file.CreationTimeUtc
+            
+            $v.date2mod = $file.LastWriteTimeUtc  # LastWriteTime это метка изменения содержимого файла и она сохраняется при копировании, т.е. если в процессе deploy`я wim-файлов по конечным сетевым папкам и дискам этот атрибут сохранится - его можно использовать для определения самой свежей версии, которую и следует устанавливать
+            
+            $v.date3acc = $file.LastAccessTimeUtc
+            
             
             $CheckListWim[("$name wim`t" + $s.netpath)] = $v.file
             
