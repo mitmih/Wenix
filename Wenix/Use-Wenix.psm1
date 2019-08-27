@@ -443,7 +443,7 @@ function Test-WimNet
     
     param ( $SharesList, $ver, $name, [switch] $md5 = $false)
     
-    begin { $valid = @() }
+    begin { $valid = @() <# список сетевых шар, где указанный <имя>.wim доступен по пути ...\.IT\<версия_ОС> и его md5 ok #> }
     
     process
     {
@@ -457,8 +457,7 @@ function Test-WimNet
             
             $OS = $s.netpath + "\.IT\$ver"
             
-            # $s | Add-Member -Force -MemberType NoteProperty -Name 'file' -Value (Test-Path -Path "$OS\$name.wim")
-            $v = $s | Select-Object -Property *, file, md5
+            $v = $s | Select-Object -Property *, file, md5  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty уже существует
             
             $v.file = Test-Path -Path "$OS\$name.wim"
             
@@ -470,34 +469,32 @@ function Test-WimNet
                 
                 $md5real = Get-Content -Path "$OS\$name.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
                 
-                # $s | Add-Member -Force -MemberType NoteProperty -Name 'md5' -Value ($md5real -imatch $md5calc.Hash)
                 $v.md5 = $md5real -imatch $md5calc.Hash
                 
                 $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5
             }
             else
             {
-                # $s | Add-Member -Force -MemberType NoteProperty -Name 'md5' -Value $true
                 $v.md5 = $true
                 
                 $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5
             }
             
             
-            if ($CheckListWim.Values -contains $true)
+            if ($CheckListWim.Values -contains $true)  # вывод в консоль успешных проверок
             {
                 Write-Host "    wim checks       OK             $($s.netpath)" -BackgroundColor DarkGreen
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
             }
             
-            if ($CheckListWim.Values -contains $false)
+            if ($CheckListWim.Values -contains $false)  # вывод проваленных проверок
             {
                 Write-Host "    wim checks   FAILED             $($s.netpath)" -BackgroundColor DarkRed
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
             }
             
             
-            $valid += $v | Where-Object {$_.file -eq $true -and $_.md5 -eq $true}
+            $valid += $v | Where-Object {$_.file -eq $true -and $_.md5 -eq $true}  # 
             
             $drive | Remove-PSDrive
         }
