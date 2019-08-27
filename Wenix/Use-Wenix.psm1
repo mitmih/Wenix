@@ -535,56 +535,91 @@ function Use-Wenix
                     
                     $checkDisk = Test-Disk
                     
-                    $checkWim = if ($checkDisk) { Test-Wim -ver $ver -label "_PE" -md5 } else { Test-Wim -ver $ver -label "wim" -md5 }
+                    if ($checkDisk)  # если диск ОК (размечен как надо), то нужно проверить локальные ВИМ файлы
+                    {
+                        $CheckWimLoc = Test-Wim -ver $ver -label "_PE" -md5  # True / False, проверяет и PE boot.wim и $ver install.wim
+                        
+                        if ($CheckWimLoc)  # можно перезаписать раздел с ОС, RAM-диск трогать не нужно
+                        {
+                            Write-Host "1st way: re-apply OS wim to 2_OS volume" -BackgroundColor Black
+                            # 
+                        }
+                    }
+                    else  # диск НЕ ОК, потребуется: сохранить RAM-диск на x:, переразметить ЖД, восстановить RAM-диск, записать том с ОС
+                    # это будет возможно, если есть файлы install.wim для выбранной ОС
+                    # нужно проверить wim-файлы на сетевых шарах из C:\.IT\PE\BootStrap.csv, где C: это том с ОС
+                    {
+                        $shares = @()
+                        
+                        $file = Find-NetConfig
+                        
+                        if ($null -ne $file) { $shares += Read-NetConfig -file $file }
+                        
+                        if ($shares.Count -gt 0)  # если есть "живые" шары - нужно проверить наличие файлов и их контрольные суммы
+                        {
+                            $PEshares = Test-WimNet -SharesList $shares -ver 'PE' -name 'boot'    -md5 #:$false  # PE boot.wim по идее нет необходимости проверять - т.к. модуль работает из загруженного в RAM-диск файла
+                            $OSshares = Test-WimNet -SharesList $shares -ver $ver -name 'install' -md5 #:$false
+                            
+                            if ($OSshares.Count -gt 0 -and $PEshares.Count -gt 0)  # файлы в порядке, можно приступать
+                            {
+                                Write-Host "2nd way: remap disk, apply PE and OS wim-files, copy wim-files to new 3_PE volume" -BackgroundColor Black
+                                # 
+                            }
+                        }
+                    }
+                    
+                    
+                    
+                    # $checkWim = if ($checkDisk) { Test-Wim -ver $ver -label "_PE" -md5 } else { Test-Wim -ver $ver -label "wim" -md5 }
                     
                     # переделать чеки вим-файлов: может быть ситуация когда диск уже разбит, но файлов на 3_PE ещё нет и нужно перезапустить установку, т.е. при новом диске использовать вим-файлы с временного раздела (напр. произошел сбой по питанию при заливке install.wim)
                     # можно чекать wim-файлы независимо от состояния диска и использовать в первую очередь файлы с временного 'wim' тома
                     
-                    Write-Host "checked`t`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                    # Write-Host "checked`t`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                     
                     
-                    if ( $checkDisk -and $checkWim)
-                    # диск уже размечен как надо, и wim-файлы находятся на 3-ем разделе с меткой '3_PE'
-                    {
-                        Write-Host "1st way: re-apply OS wim to 2_OS volume" -BackgroundColor Black
+                    # if ( $checkDisk -and $checkWim)
+                    # # диск уже размечен как надо, и wim-файлы находятся на 3-ем разделе с меткой '3_PE'
+                    # {
+                    #     Write-Host "1st way: re-apply OS wim to 2_OS volume" -BackgroundColor Black
                         
-                        $log['Mount-Standart'] = Mount-Standart
+                    #     $log['Mount-Standart'] = Mount-Standart
                         
-                        Write-Host "Mount-Standart`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                    #     Write-Host "Mount-Standart`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                         
                         
-                        $log['Install-Wim OS'] = Install-Wim -vol '3_PE' -ver $ver      # накатываем ОС c временного раздела ('wim' в метке тома)
+                    #     $log['Install-Wim OS'] = Install-Wim -vol '3_PE' -ver $ver      # накатываем ОС c временного раздела ('wim' в метке тома)
                         
-                        Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
-                    }
+                    #     Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                    # }
                     
-                    elseif (!$checkDisk -and $checkWim)
-                    # диск ещё не размечен на три раздела, а wim-файлы находятся на доп. разделе с меткой 'wim'
-                    {
-                        Write-Host "2nd way: remap disk, apply PE wim and OS wim, move wim-files to new 3_PE volume" -BackgroundColor Black
+                    # elseif (!$checkDisk -and $checkWim)
+                    # # диск ещё не размечен на три раздела, а wim-файлы находятся на доп. разделе с меткой 'wim'
+                    # {
+                    #     Write-Host "2nd way: remap disk, apply PE wim and OS wim, move wim-files to new 3_PE volume" -BackgroundColor Black
                         
                         
-                        $log['Edit-PartitionTable'] = Edit-PartitionTable
+                    #     $log['Edit-PartitionTable'] = Edit-PartitionTable
                         
-                        Write-Host "Edit-PartitionTable`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
-                        
-                        
-                        $log['Install-Wim PE'] = Install-Wim -vol 'wim' -ver $ver -PE  # накатываем PE c временного раздела ('wim' в метке тома)
-                        
-                        Write-Host "Install-Wim PE`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                    #     Write-Host "Edit-PartitionTable`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                         
                         
-                        $log['Install-Wim OS'] = Install-Wim -vol 'wim' -ver $ver      # накатываем ОС c временного раздела ('wim' в метке тома)
+                    #     $log['Install-Wim PE'] = Install-Wim -vol 'wim' -ver $ver -PE  # накатываем PE c временного раздела ('wim' в метке тома)
                         
-                        Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                    #     Write-Host "Install-Wim PE`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                         
                         
-                        if ($log.Values -notcontains $false) { $log['Complete-PEPartition'] = Complete-PEPartition <# -ver $ver #> }  # завершающий этап: +wim-файлы на '3_PE' раздел, -'wim' раздел, расширение '3_PE' до max
+                    #     $log['Install-Wim OS'] = Install-Wim -vol 'wim' -ver $ver      # накатываем ОС c временного раздела ('wim' в метке тома)
                         
-                        Write-Host "all DONE !`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
-                    }
+                    #     Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                        
+                        
+                    #     if ($log.Values -notcontains $false) { $log['Complete-PEPartition'] = Complete-PEPartition <# -ver $ver #> }  # завершающий этап: +wim-файлы на '3_PE' раздел, -'wim' раздел, расширение '3_PE' до max
+                        
+                    #     Write-Host "all DONE !`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                    # }
                     
-                    else { Write-Host "3 - NOT READY" -BackgroundColor Black}
+                    # else { Write-Host "3 - NOT READY" -BackgroundColor Black}
                     
                     
                     if ($log.Values -notcontains $false) { Restart-Computer -Force } else { return }  # если все ок - перезагрузка, иначе - выход для отладки и ручных манипуляций
