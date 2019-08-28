@@ -72,7 +72,7 @@ function Test-Disk
         
         $CheckList = [ordered]@{}
         
-        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -eq '3_PE'}  # том загрузки PE и восстановления
+        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}  # том загрузки PE и восстановления
         
         if ($null -ne $wim_vol) { $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path} }
         
@@ -89,7 +89,7 @@ function Test-Disk
     {
         foreach ($v in $volumes)
         {
-            $CheckList[$v] = (Get-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber $volumes.IndexOf($v) -ErrorAction Stop | Get-Volume).FileSystemLabel -match $v
+            $CheckList[$v] = (Get-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber ($volumes.IndexOf($v) + 1) -ErrorAction Stop | Get-Volume).FileSystemLabel -match $v
         }
         
         
@@ -608,6 +608,8 @@ function Use-Wenix
             {
                 {$_ -in @('D0', 'D7')}  # нажали 0 или 7
                 {
+                    "   <-- selected`n" | Out-Default
+                    
                     $WatchDogTimer = [system.diagnostics.stopwatch]::startNew()
                     
                     
@@ -755,8 +757,8 @@ function Use-Wenix
                     
                     # else { Write-Host "3 - NOT READY" -BackgroundColor Black}
                     
-                    
-                    if ($log.Values -notcontains $false) { Restart-Computer -Force } else { return }  # если все ок - перезагрузка, иначе - выход для отладки и ручных манипуляций
+                    $log['debug'] = $false
+                    if ($log.Values -notcontains $false) { <# Restart-Computer -Force #> } else { return }  # если все ок - перезагрузка, иначе - выход для отладки и ручных манипуляций
                 }
                 
                 'Escape'
