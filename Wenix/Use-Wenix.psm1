@@ -495,7 +495,7 @@ function Test-WimNet
             {
                 $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
                 
-                $drive = New-PSDrive -NAME "$ver $name.wim" -PSProvider FileSystem -Root $s.netpath -Credential $cred <# -ErrorAction Stop #>
+                $drive = New-PSDrive -NAME ($ver + '_' + $name + '_wim') -PSProvider FileSystem -Root $s.netpath -Credential $cred <# -ErrorAction Stop #>
             }
             
             $OSdir = $s.netpath + "\.IT\$ver"
@@ -610,76 +610,97 @@ function Use-Wenix
                 {
                     $WatchDogTimer = [system.diagnostics.stopwatch]::startNew()
                     
-                    Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') -ForegroundColor Yellow
+                    
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') -ForegroundColor Yellow
                     
                     $ver = if ($_ -eq 'D7') { '7' } else { '10' }
                     
+                    
                     $file = Find-NetConfig  # сетевой конфиг, должен лежать на томе ':\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C: D: etc
                     
-                    if ($null -ne $file)
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Find-NetConfig BootStrap.csv') -ForegroundColor Yellow
+                    
+                    
+                    if ($null -ne $file)  # сетевой конфиг ':\.IT\PE\BootStrap.csv' найден
                     {
-                        Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage BootStrap.csv') -ForegroundColor Yellow
-                        
-                        
                         $shares += Read-NetConfig -file $file
                         
-                        Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage NetWork Shares') -ForegroundColor Yellow
+                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig') -ForegroundColor Yellow
                         
                         
                         $PEsourses += Test-WimNet -md5 -ver 'PE' -name 'boot'    -SharesList $shares
                         
-                        Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage PE boot.wim') -ForegroundColor Yellow
+                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-WimNet NetWork PE') -ForegroundColor Yellow
                         
                         
                         $OSsourses += Test-WimNet -md5 -ver $ver -name 'install' -SharesList $shares
                         
-                        Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage OS install.wim') -ForegroundColor Yellow
+                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-WimNet NetWork OS') -ForegroundColor Yellow
                     }
                     
-                    $log['Test-Disk'] = Test-Disk
-                    Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') -ForegroundColor Yellow
                     
+                    $CheckDisk = Test-Disk
                     
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') -ForegroundColor Yellow
                     
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    if ($log['Test-Disk'])  # если диск ОК (размечен как надо), то нужно проверить локальные ВИМ файлы
+                    if ($CheckDisk)
                     {
-                        $CheckWimLoc = Test-Wim -ver $ver -md5  # True / False, проверяет и PE boot.wim и $ver install.wim
+                        $PEsourses += Test-WimNet -md5 -ver 'PE' -name 'boot'
                         
-                        if ($CheckWimLoc)  # можно перезаписать раздел с ОС, скопировать свежий boot.wim для RAM-диска
-                        {
-                            Write-Host "1st way: re-apply OS wim to 2_OS volume" -BackgroundColor Black
-                            # 
-                        }
+                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-WimNet local PE') -ForegroundColor Yellow
+                        
+                        
+                        $OSsourses += Test-WimNet -md5 -ver $ver -name 'install'
+                        
+                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-WimNet local OS') -ForegroundColor Yellow
                     }
-                    else  # диск НЕ ОК, потребуется: сохранить RAM-диск на x:, переразметить ЖД, восстановить RAM-диск, записать том с ОС
-                    # это будет возможно, если есть файлы install.wim для выбранной ОС
-                    # нужно проверить wim-файлы на сетевых шарах из C:\.IT\PE\BootStrap.csv, где C: это том с ОС
+                    
+                    
+                    if ($PEsourses.count -gt 0 -and $OSsourses.count -gt 0)  # можно начинать установку
                     {
+                        if ($CheckDisk)  # освежить PE при необходимости (сравнить даты), перезаписать _OS том
+                        {}
+                        else  # забэкапить файлы ram-диска (свежим boot.wim), переразметить диск, восстановить загрузку PE, перезаписать _OS том
+                        {}
+                    }
+                    else  # отбой: установка не будет завершена - нет всех необходимых файлов
+                    {}
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+# if ($CheckDisk)  # если диск ОК (размечен как надо), то нужно проверить локальные ВИМ файлы
+# {
+#     $CheckWimLoc = Test-Wim -ver $ver -md5  # True / False, проверяет и PE boot.wim и $ver install.wim
+    
+#     if ($CheckWimLoc)  # можно перезаписать раздел с ОС, скопировать свежий boot.wim для RAM-диска
+#     {
+#         Write-Host "1st way: re-apply OS wim to 2_OS volume" -BackgroundColor Black
+#         # 
+#     }
+# }
+# else  # диск НЕ ОК, потребуется: сохранить RAM-диск на x:, переразметить ЖД, восстановить RAM-диск, записать том с ОС
+# # это будет возможно, если есть файлы install.wim для выбранной ОС
+# # нужно проверить wim-файлы на сетевых шарах из C:\.IT\PE\BootStrap.csv, где C: это том с ОС
+# {
 
-                        
-                        if ($shares.Count -gt 0)  # если есть "живые" шары - нужно проверить наличие файлов и их контрольные суммы
-                        {
-                            $PEshares = Test-WimNet -SharesList $shares -ver 'PE' -name 'boot'    -md5 #:$false  # PE boot.wim по идее нет необходимости проверять - т.к. модуль работает из загруженного в RAM-диск файла
-                            $OSshares = Test-WimNet -SharesList $shares -ver $ver -name 'install' -md5 #:$false
-                            
-                            if ($OSshares.Count -gt 0 -and $PEshares.Count -gt 0)  # файлы в порядке, можно приступать
-                            {
-                                Write-Host "2nd way: remap disk, apply PE and OS wim-files, copy wim-files to new 3_PE volume" -BackgroundColor Black
-                                # 
-                            }
-                        }
-                    }
+    
+#     if ($shares.Count -gt 0)  # если есть "живые" шары - нужно проверить наличие файлов и их контрольные суммы
+#     {
+#         $PEshares = Test-WimNet -SharesList $shares -ver 'PE' -name 'boot'    -md5 #:$false  # PE boot.wim по идее нет необходимости проверять - т.к. модуль работает из загруженного в RAM-диск файла
+#         $OSshares = Test-WimNet -SharesList $shares -ver $ver -name 'install' -md5 #:$false
+        
+#         if ($OSshares.Count -gt 0 -and $PEshares.Count -gt 0)  # файлы в порядке, можно приступать
+#         {
+#             Write-Host "2nd way: remap disk, apply PE and OS wim-files, copy wim-files to new 3_PE volume" -BackgroundColor Black
+#             # 
+#         }
+#     }
+# }
                     
                     
                     
