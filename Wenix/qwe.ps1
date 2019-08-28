@@ -3,8 +3,8 @@ Get-Module -Name Wenix
 
 $file = Find-NetConfig
 
-$PEloc = Test-WimNet -md5 -ver 'PE' -name 'boot'
-$OSloc = Test-WimNet -md5 -ver '10' -name 'install'
+$PEloc = Test-WimNet -md5 -ver 'PE' -name 'boot'    
+$OSloc = Test-WimNet -md5 -ver '10' -name 'install' 
 
 $shares = @()
 if ($null -ne $file) { $shares += Read-NetConfig -file $file } # else { $shares = @() }
