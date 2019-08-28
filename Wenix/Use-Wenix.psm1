@@ -64,10 +64,12 @@ function Show-Menu
 
 function Test-Disk
 {
-    param ()
+    param ([switch]$skip = $false)
     
     begin
     {
+        if ($skip) {return $true}
+        
         $CheckList = [ordered]@{}
         
         $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match 'wim'}  # том с wim файлами
@@ -115,15 +117,15 @@ function Test-Wim
 {
     [CmdletBinding()]
     
-    param ( $label, $ver, [switch] $md5 = $false)
+    param ( $ver, [switch] $md5 = $false)
     
     begin
     {
         $CheckList = [ordered]@{}
         
-        $PE = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match "$label"}).DriveLetter):\.IT\PE"
+        $PE = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}).DriveLetter):\.IT\PE"
         
-        $OS = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match "$label"}).DriveLetter):\.IT\$ver"
+        $OS = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}).DriveLetter):\.IT\$ver"
     }
     
     process
@@ -362,7 +364,7 @@ function Find-NetConfig
     
     process
     {
-        foreach ($v in (Get-Volume) )
+        foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )
         {
             $p = $v.DriveLetter + ':\.IT\PE\BootStrap.csv'
             
@@ -437,57 +439,89 @@ function Test-WimNet
 {
     [CmdletBinding()]
     
-    param ( $SharesList, $ver, $name, [switch] $md5 = $false)
+    param ( $SharesList = $null, $ver, $name, [switch] $md5 = $false )
     
-    begin { $valid = @() <# список сетевых шар, где указанный <имя>.wim доступен по пути ...\.IT\<версия_ОС> и его md5 ok #> }
+    begin
+    {
+        $valid = @() <# список сетевых шар, где указанный <имя>.wim доступен по пути ...\.IT\<версия_ОС> и его md5 ok #>
+        
+        $local = $null -eq $SharesList  # локальная установка
+    }
     
     process
     {
-        foreach ($s in $SharesList)
+        if ($local)  # формирование однотипной коллекции объектов, независимо от сетевое / локальное расположение файлов
+        {
+            $LocalDir = @("$((Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}).DriveLetter):")  # D:
+            
+            $psobj = (New-Object psobject | Select-Object -Property 'gw', 'netpath', 'user', 'password')
+            
+            $psobj.gw          = '-'
+            $psobj.netpath     = [string]$LocalDir
+            $psobj.user        = '-'
+            $psobj.password    = '-'
+            
+            $places = @($psobj)
+        }
+        else { $places = $SharesList }
+        
+        
+        # foreach ($s in $SharesList)
+        foreach ($s in $places)
         {
             $CheckListWim = [ordered]@{}
             
             $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
             
-            $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $s.netpath -Credential $cred -ErrorAction Stop
+            $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $s.netpath -Credential $cred -ErrorAction Stop  # Диск с именем "T" уже существует.
             
             $OS = $s.netpath + "\.IT\$ver"
             
-            $v = $s | Select-Object -Property *, 'ver', 'name', 'file', 'md5', 'date1rec', 'date2mod', 'date3acc'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty   w3уже существует
+            $v = $s | Select-Object -Property *, 'OS', 'FileName', 'FileExist', 'md5ok', 'date2mod', 'FilePath'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty уже существует
             
-            $v.ver = $ver
+            $v.OS = $ver
             
-            $v.name = "$name.wim"
+            $v.FileName = "$name.wim"
             
-            $v.file = Test-Path -Path "$OS\$name.wim"
+            $v.FileExist = Test-Path -Path "$OS\$name.wim"
             
-            
-            $file = Get-Item -Path "$OS\$name.wim"
-            
-            $v.date1rec = $file.CreationTimeUtc
-            
-            $v.date2mod = $file.LastWriteTimeUtc  # LastWriteTime это метка изменения содержимого файла и она сохраняется при копировании, т.е. если в процессе deploy`я wim-файлов по конечным сетевым папкам и дискам этот атрибут сохранится - его можно использовать для определения самой свежей версии, которую и следует устанавливать
-            
-            $v.date3acc = $file.LastAccessTimeUtc
+            $CheckListWim[("$name wim`t" + $s.netpath)] = $v.FileExist
             
             
-            $CheckListWim[("$name wim`t" + $s.netpath)] = $v.file
-            
-            if ($md5)
+            if ($v.FileExist)
             {
-                $md5calc = Get-FileHash -Path "$OS\$name.wim" -Algorithm MD5
+                $file = Get-Item -Path "$OS\$name.wim"
                 
-                $md5file = (Get-Content -Path "$OS\$name.wim.md5" | Select-String -Pattern "$name.wim").ToString().Split(' ')[0] #'^[a-zA-Z0-9]'
+                $v.FilePath = $file.FullName
                 
-                $v.md5 = $md5file -ieq $md5calc.Hash
+                $v.date2mod = $file.LastWriteTimeUtc  # LastWriteTime это метка изменения содержимого файла и она сохраняется при копировании, т.е. если в процессе deploy`я wim-файлов по конечным сетевым папкам и дискам этот атрибут сохранится - его можно использовать для определения самой свежей версии, которую и следует устанавливать
+                # $v.date1rec = $file.CreationTimeUtc
+                # $v.date3acc = $file.LastAccessTimeUtc
                 
-                $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5
-            }
-            else
-            {
-                $v.md5 = $true
                 
-                $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5
+                if ($md5)
+                {
+                    $md5file = (Get-Content -Path "$OS\$name.wim.md5" | Select-String -Pattern "$name.wim")
+                    
+                    if ( $null -eq $md5file ) { $v.md5ok = $false }  # защита от неправильного имени wim-файла в md5-файле
+                    else
+                    {
+                        $md5file = $md5file.ToString().Split(' ')[0] #'^[a-zA-Z0-9]'
+                        
+                        $md5calc = Get-FileHash -Path "$OS\$name.wim" -Algorithm MD5
+                        
+                        $v.md5ok = $md5file -ieq $md5calc.Hash
+                    }
+                    
+                    $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5ok
+                    
+                }
+                else  # если отключена проверка контрольной суммы - считаем что она ок
+                {
+                    $v.md5ok = $true
+                    
+                    $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5ok
+                }
             }
             
             
@@ -504,9 +538,9 @@ function Test-WimNet
             }
             
             
-            $valid += $v | Where-Object {$_.file -eq $true -and $_.md5 -eq $true}  # 
+            $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # 
             
-            $drive | Remove-PSDrive
+            $drive | Remove-PSDrive  # Remove-PSDrive : Сетевое подключение не существует
         }
     }
     
