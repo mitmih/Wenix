@@ -68,8 +68,6 @@ function Test-Disk
     
     begin
     {
-        if ($skip) {return $true}
-        
         $CheckList = [ordered]@{}
         
         $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}  # том загрузки PE и восстановления
@@ -112,7 +110,7 @@ function Test-Disk
             $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
         }
         
-        return ( $CheckList.count -gt 0 -and $CheckList.Values -notcontains $false )
+        if ($skip) { return $true } else { return ( $CheckList.count -gt 0 -and $CheckList.Values -notcontains $false ) }
     }
 }
 
@@ -500,7 +498,7 @@ function Test-WimNet
             
             $OSdir = $s.netpath + "\.IT\$ver"
             
-            $v = $s | Select-Object -Property *, 'OS', 'FileName', 'FileExist', 'md5ok', 'date2mod', 'FilePath', 'FileSize'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty уже существует
+            $v = $s | Select-Object -Property *, 'OS', 'FileName', 'FileExist', 'md5ok', 'date2mod', 'Priority', 'FilePath', 'FileSize'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty уже существует
             
             $v.OS = $ver  # 7 / 10 / PE
             
@@ -519,10 +517,12 @@ function Test-WimNet
                 
                 $v.FileSize = ('{0:N0}' -f ($file.Length / 1MB)) + ' MB'
                 
+                
                 $v.date2mod = $file.LastWriteTimeUtc  # LastWriteTime это метка изменения содержимого файла и она сохраняется при копировании, т.е. если в процессе deploy`я wim-файлов по конечным сетевым папкам и дискам этот атрибут сохранится - его можно использовать для выбора самого свежего файла для развёртывания
                 # $v.date1rec = $file.CreationTimeUtc
                 # $v.date3acc = $file.LastAccessTimeUtc
                 
+                $v.Priority = if ($local) {0} else {1}  # понадобится в Use-Wenix: если диск ОК, то при одинаковых датах приоритет будет выше у локального файла
                 
                 if ($md5)  # проверка md5 если есть контролькой
                 {
@@ -608,7 +608,7 @@ function Use-Wenix
             {
                 {$_ -in @('D0', 'D7')}  # нажали 0 или 7
                 {
-                    "   <-- selected`n" | Out-Default
+                    "  <--     selected`n" | Out-Default
                     
                     $WatchDogTimer = [system.diagnostics.stopwatch]::startNew()
                     
@@ -641,7 +641,7 @@ function Use-Wenix
                     }
                     
                     
-                    $CheckDisk = Test-Disk
+                    $CheckDisk = Test-Disk -skip
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') -ForegroundColor Yellow
                     
@@ -658,8 +658,14 @@ function Use-Wenix
                     }
                     
                     
+                    
                     if ($PEsourses.count -gt 0 -and $OSsourses.count -gt 0)  # можно начинать установку
                     {
+                        $PEsourses = $PEsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $false}, 'Priority'
+                        $OSsourses = $OSsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $false}, 'Priority'
+                        
+                        $PEsourses, $OSsourses | Format-Table *
+                        
                         if ($CheckDisk)  # освежить PE при необходимости (сравнить даты), перезаписать _OS том
                         {}
                         else  # забэкапить файлы ram-диска (свежим boot.wim), переразметить диск, восстановить загрузку PE, перезаписать _OS том
