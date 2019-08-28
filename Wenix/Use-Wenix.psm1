@@ -450,23 +450,30 @@ function Test-WimNet
     
     process
     {
-        if ($local)  # формирование однотипной коллекции объектов, независимо от сетевое / локальное расположение файлов
-        {
-            $LocalDir = @("$((Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}).DriveLetter):")  # D:
+        if ($local)  # формирование однотипной исходной коллекции для проверки, независимо от расположения (сетевое / локальное) файлов
+        {# логика поиска/контроля wim/md5 файлов на сетевых шарах подойдёт с минимальными изменениями и для локального PE раздела - нужно лишь превратить его в итерируемый объект (массив) с определёнными полями, тогда цикл с проверками не нужно будет дублировать для локального случая
+            $LocalVol = (Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'})  # ищем том восстановления
             
-            $psobj = (New-Object psobject | Select-Object -Property 'gw', 'netpath', 'user', 'password')
-            
-            $psobj.gw          = '-'
-            $psobj.netpath     = [string]$LocalDir
-            $psobj.user        = '-'
-            $psobj.password    = '-'
-            
-            $places = @($psobj)
+            if ($LocalVol)  # если найден такой том - сделаем массив чтобы не переписывать цикл итерации по шарам
+            {
+                $psobj = (New-Object psobject | Select-Object -Property 'gw', 'netpath', 'user', 'password')
+                
+                $psobj.gw          = '-'
+                
+                $psobj.netpath     = [string] ($LocalVol.DriveLetter + ':')
+                
+                $psobj.user        = '-'
+                
+                $psobj.password    = '-'
+                
+                
+                $places = @($psobj)
+            }
+            else { $places = $null }
         }
         else { $places = $SharesList }
         
         
-        # foreach ($s in $SharesList)
         foreach ($s in $places)
         {
             $CheckListWim = [ordered]@{}
@@ -501,7 +508,11 @@ function Test-WimNet
                 
                 if ($md5)
                 {
-                    $md5file = (Get-Content -Path "$OS\$name.wim.md5" | Select-String -Pattern "$name.wim")
+                    $md5file = if (Test-Path -Path "$OS\$name.wim.md5")
+                    {
+                        Get-Content -Path "$OS\$name.wim.md5" | Select-String -Pattern "$name.wim"
+                    }
+                    else { $null }
                     
                     if ( $null -eq $md5file ) { $v.md5ok = $false }  # защита от неправильного имени wim-файла в md5-файле
                     else
@@ -514,9 +525,8 @@ function Test-WimNet
                     }
                     
                     $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5ok
-                    
                 }
-                else  # если отключена проверка контрольной суммы - считаем что она ок
+                else  # при отключённой проверке контрольной суммы - считаем её ок
                 {
                     $v.md5ok = $true
                     
@@ -540,7 +550,8 @@ function Test-WimNet
             
             $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # 
             
-            $drive | Remove-PSDrive  # Remove-PSDrive : Сетевое подключение не существует
+            
+            if ( ($drive | Get-PSDrive) ) { $drive | Remove-PSDrive }
         }
     }
     
@@ -583,7 +594,7 @@ function Use-Wenix
                     
                     if ($checkDisk)  # если диск ОК (размечен как надо), то нужно проверить локальные ВИМ файлы
                     {
-                        $CheckWimLoc = Test-Wim -ver $ver -label "_PE" -md5  # True / False, проверяет и PE boot.wim и $ver install.wim
+                        $CheckWimLoc = Test-Wim -ver $ver -md5  # True / False, проверяет и PE boot.wim и $ver install.wim
                         
                         if ($CheckWimLoc)  # можно перезаписать раздел с ОС, RAM-диск трогать не нужно
                         {
