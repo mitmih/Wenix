@@ -72,43 +72,47 @@ function Test-Disk
         
         $CheckList = [ordered]@{}
         
-        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match 'wim'}  # том с wim файлами
-        
-        if ($null -eq $wim_vol) { $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -eq '3_PE'} }  # том с wim файлами
+        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -eq '3_PE'}  # том загрузки PE и восстановления
         
         if ($null -ne $wim_vol) { $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path} }
+        
+        $volumes = @(
+            '_BOOT'
+            '_OS'
+            '_PE'
+        )
+        
+        # 
     }
     
     process
     {
-        $CheckList['1_BOOT'] = (Get-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber 1 -ErrorAction Stop | Get-Volume).FileSystemLabel -match '1_BOOT'
+        foreach ($v in $volumes)
+        {
+            $CheckList[$v] = (Get-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber $volumes.IndexOf($v) -ErrorAction Stop | Get-Volume).FileSystemLabel -match $v
+        }
         
-        $CheckList['2_OS']   = (Get-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber 2 -ErrorAction Stop | Get-Volume).FileSystemLabel -match '2_OS'
-        
-        $CheckList['3_PE']   = (Get-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber 3 -ErrorAction Stop | Get-Volume).FileSystemLabel -match '3_PE'
         
         $CheckList['partition count']= (Get-Partition -DiskNumber $wim_part.DiskNumber).Length -eq 3
         
-        $CheckList['partition table']= (Get-Disk -Number 0).PartitionStyle -match 'MBR'
-        
-        # $CheckList['2nd boot menu entry'] = $null -ne (BCDEdit /enum | Select-String -Pattern "^device.*ramdisk=.*.IT.PE.boot.wim")
+        $CheckList['partition table']= (Get-Disk -Number $wim_part.DiskNumber).PartitionStyle -match 'MBR'
     }
     
     end
     {
         if ($CheckList.Values -contains $true)
         {
-            Write-Host '    disk checks OK                  ' -BackgroundColor DarkGreen
+            Write-Host '    disk OK     checks                  ' -BackgroundColor DarkGreen
             $CheckList.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
         }
         
         if ($CheckList.Values -contains $false)
         {
-            Write-Host '    disk checks FAILED              ' -BackgroundColor DarkRed
+            Write-Host '    disk FAILED checks                  ' -BackgroundColor DarkRed
             $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
         }
         
-        if ($CheckList.count -gt 0) { return ($CheckList.Values -notcontains $false) } # else { return $false }
+        return ( $CheckList.count -gt 0 -and $CheckList.Values -notcontains $false )
     }
 }
 
@@ -364,7 +368,7 @@ function Find-NetConfig
     
     process
     {
-        foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )
+        foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
         {
             $p = $v.DriveLetter + ':\.IT\PE\BootStrap.csv'
             
@@ -439,94 +443,105 @@ function Test-WimNet
 {
     [CmdletBinding()]
     
-    param ( $SharesList = $null, $ver, $name, [switch] $md5 = $false )
+    param (
+        $SharesList = $null,  # список сетевых папок либо $null (для проверки локальных файлы)
+        
+        $ver,  # 7 / 10 / PE
+        
+        $name, # boot / install
+        
+        [switch] $md5 = $false  # включить проверку md5
+    )
+    
     
     begin
     {
-        $valid = @() <# список сетевых шар, где указанный <имя>.wim доступен по пути ...\.IT\<версия_ОС> и его md5 ok #>
+        $valid = @()  # список сетевых шар: <имя>.wim доступен по пути ...\.IT\<версия_ОС>, его md5 совпадает с хэшем из <имя>.wim.md5
         
-        $local = $null -eq $SharesList  # локальная установка
+        $local = $null -eq $SharesList  # показатель: нужно проверять файлы на локальном диске с меткой _PE, а не в сети (в параметрах не передан список сетевых папок)
     }
     
+    # логика поиска/контроля wim/md5 файлов на сетевых шарах подойдёт с минимальными изменениями и для локального PE раздела - нужно лишь превратить его в итерируемый объект (массив) с определёнными полями, тогда цикл с проверками не нужно будет дублировать для локального случая
     process
     {
-        if ($local)  # формирование однотипной исходной коллекции для проверки, независимо от расположения (сетевое / локальное) файлов
-        {# логика поиска/контроля wim/md5 файлов на сетевых шарах подойдёт с минимальными изменениями и для локального PE раздела - нужно лишь превратить его в итерируемый объект (массив) с определёнными полями, тогда цикл с проверками не нужно будет дублировать для локального случая
-            $LocalVol = (Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'})  # ищем том восстановления
+        if ($local)  # формируем (одинаковую с сетевой) локальную коллекцию для проверки
+        {
+            $LocalVol = (Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'})  # ищем том восстановления по метке
             
-            if ($LocalVol)  # если найден такой том - сделаем массив чтобы не переписывать цикл итерации по шарам
+            if ($LocalVol)  # переделаем найденный том в массив чтобы не переписывать цикл итерации по шарам
             {
                 $psobj = (New-Object psobject | Select-Object -Property 'gw', 'netpath', 'user', 'password')
                 
-                $psobj.gw          = '-'
+                $psobj.netpath     = [string] ($LocalVol.DriveLetter + ':')  # $psobj.gw          = '-'  # $psobj.user        = '-'  # $psobj.password    = '-'
                 
-                $psobj.netpath     = [string] ($LocalVol.DriveLetter + ':')
-                
-                $psobj.user        = '-'
-                
-                $psobj.password    = '-'
-                
-                
-                $places = @($psobj)
+                $places = @($psobj)  # локальная коллекция
             }
-            else { $places = $null }
+            else
+            {
+                $places = $null  # тома нет, проверять нечего
+            }
         }
-        else { $places = $SharesList }
-        
-        
-        foreach ($s in $places)
+        else
         {
-            $CheckListWim = [ordered]@{}
+            $places = $SharesList  # сетевая коллекция
+        }
+        
+        
+        foreach ($s in $places)  # цикл проверок коллекции
+        {
+            $CheckListWim = [ordered]@{}  # одноразовый чек-лист, вывод для наглядности на Out-Default
             
-            $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
+            if (!$local)
+            {
+                $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
+                
+                $drive = New-PSDrive -NAME "$ver $name.wim" -PSProvider FileSystem -Root $s.netpath -Credential $cred <# -ErrorAction Stop #>
+            }
             
-            $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $s.netpath -Credential $cred -ErrorAction Stop  # Диск с именем "T" уже существует.
+            $OSdir = $s.netpath + "\.IT\$ver"
             
-            $OS = $s.netpath + "\.IT\$ver"
+            $v = $s | Select-Object -Property *, 'OS', 'FileName', 'FileExist', 'md5ok', 'date2mod', 'FilePath', 'FileSize'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty уже существует
             
-            $v = $s | Select-Object -Property *, 'OS', 'FileName', 'FileExist', 'md5ok', 'date2mod', 'FilePath'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty уже существует
+            $v.OS = $ver  # 7 / 10 / PE
             
-            $v.OS = $ver
+            $v.FileName = "$name.wim"  # boot / install
             
-            $v.FileName = "$name.wim"
-            
-            $v.FileExist = Test-Path -Path "$OS\$name.wim"
+            $v.FileExist = Test-Path -Path "$OSdir\$name.wim"
             
             $CheckListWim[("$name wim`t" + $s.netpath)] = $v.FileExist
             
             
             if ($v.FileExist)
             {
-                $file = Get-Item -Path "$OS\$name.wim"
+                $file = Get-Item -Path "$OSdir\$name.wim"
                 
                 $v.FilePath = $file.FullName
                 
-                $v.date2mod = $file.LastWriteTimeUtc  # LastWriteTime это метка изменения содержимого файла и она сохраняется при копировании, т.е. если в процессе deploy`я wim-файлов по конечным сетевым папкам и дискам этот атрибут сохранится - его можно использовать для определения самой свежей версии, которую и следует устанавливать
+                $v.FileSize = ('{0:N0}' -f ($file.Length / 1MB)) + ' MB'
+                
+                $v.date2mod = $file.LastWriteTimeUtc  # LastWriteTime это метка изменения содержимого файла и она сохраняется при копировании, т.е. если в процессе deploy`я wim-файлов по конечным сетевым папкам и дискам этот атрибут сохранится - его можно использовать для выбора самого свежего файла для развёртывания
                 # $v.date1rec = $file.CreationTimeUtc
                 # $v.date3acc = $file.LastAccessTimeUtc
                 
                 
-                if ($md5)
+                if ($md5)  # проверка md5 если есть контролькой
                 {
-                    $md5file = if (Test-Path -Path "$OS\$name.wim.md5")
+                    if (Test-Path -Path "$OSdir\$name.wim.md5")
                     {
-                        Get-Content -Path "$OS\$name.wim.md5" | Select-String -Pattern "$name.wim"
-                    }
-                    else { $null }
-                    
-                    if ( $null -eq $md5file ) { $v.md5ok = $false }  # защита от неправильного имени wim-файла в md5-файле
-                    else
-                    {
+                        $md5file = Get-Content -Path "$OSdir\$name.wim.md5" | Select-String -Pattern "$name.wim"
+                        
                         $md5file = $md5file.ToString().Split(' ')[0] #'^[a-zA-Z0-9]'
                         
-                        $md5calc = Get-FileHash -Path "$OS\$name.wim" -Algorithm MD5
+                        $md5calc = Get-FileHash -Path "$OSdir\$name.wim" -Algorithm MD5
                         
                         $v.md5ok = $md5file -ieq $md5calc.Hash
                     }
+                    else { $v.md5ok = $false }
+                    
                     
                     $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5ok
                 }
-                else  # при отключённой проверке контрольной суммы - считаем её ок
+                else  # при отключённой проверке md5 - принимаем, что она ок
                 {
                     $v.md5ok = $true
                     
@@ -548,10 +563,10 @@ function Test-WimNet
             }
             
             
-            $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # 
+            $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # список проверенных источников файлов
             
             
-            if ( ($drive | Get-PSDrive) ) { $drive | Remove-PSDrive }
+            if ( !$local -and ($drive | Get-PSDrive) ) { $drive | Remove-PSDrive }  # отключение сетевого диска
         }
     }
     
@@ -572,7 +587,16 @@ function Use-Wenix
 {
     param ()
     
-    begin { $log = [ordered]@{} }
+    begin
+    {
+        $log = [ordered]@{}
+        
+        $PEsourses = @()  # набор источников файлов для сортировки и выбора самого свежего wim-файла
+        
+        $OSsourses = @()  # набор источников файлов для сортировки и выбора самого свежего wim-файла
+        
+        $shares = @()
+    }
     
     process
     {
@@ -586,17 +610,53 @@ function Use-Wenix
                 {
                     $WatchDogTimer = [system.diagnostics.stopwatch]::startNew()
                     
-                    Write-Host "installation process launched"
+                    Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') -ForegroundColor Yellow
                     
                     $ver = if ($_ -eq 'D7') { '7' } else { '10' }
                     
-                    $checkDisk = Test-Disk
+                    $file = Find-NetConfig  # сетевой конфиг, должен лежать на томе ':\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C: D: etc
                     
-                    if ($checkDisk)  # если диск ОК (размечен как надо), то нужно проверить локальные ВИМ файлы
+                    if ($null -ne $file)
+                    {
+                        Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage BootStrap.csv') -ForegroundColor Yellow
+                        
+                        
+                        $shares += Read-NetConfig -file $file
+                        
+                        Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage NetWork Shares') -ForegroundColor Yellow
+                        
+                        
+                        $PEsourses += Test-WimNet -md5 -ver 'PE' -name 'boot'    -SharesList $shares
+                        
+                        Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage PE boot.wim') -ForegroundColor Yellow
+                        
+                        
+                        $OSsourses += Test-WimNet -md5 -ver $ver -name 'install' -SharesList $shares
+                        
+                        Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage OS install.wim') -ForegroundColor Yellow
+                    }
+                    
+                    $log['Test-Disk'] = Test-Disk
+                    Write-Host ("`t{0:N0} minutes`t`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') -ForegroundColor Yellow
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    if ($log['Test-Disk'])  # если диск ОК (размечен как надо), то нужно проверить локальные ВИМ файлы
                     {
                         $CheckWimLoc = Test-Wim -ver $ver -md5  # True / False, проверяет и PE boot.wim и $ver install.wim
                         
-                        if ($CheckWimLoc)  # можно перезаписать раздел с ОС, RAM-диск трогать не нужно
+                        if ($CheckWimLoc)  # можно перезаписать раздел с ОС, скопировать свежий boot.wim для RAM-диска
                         {
                             Write-Host "1st way: re-apply OS wim to 2_OS volume" -BackgroundColor Black
                             # 
@@ -606,11 +666,7 @@ function Use-Wenix
                     # это будет возможно, если есть файлы install.wim для выбранной ОС
                     # нужно проверить wim-файлы на сетевых шарах из C:\.IT\PE\BootStrap.csv, где C: это том с ОС
                     {
-                        $shares = @()
-                        
-                        $file = Find-NetConfig
-                        
-                        if ($null -ne $file) { $shares += Read-NetConfig -file $file }
+
                         
                         if ($shares.Count -gt 0)  # если есть "живые" шары - нужно проверить наличие файлов и их контрольные суммы
                         {
