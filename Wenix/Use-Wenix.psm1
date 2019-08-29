@@ -1,7 +1,7 @@
 $volumes = @(
-    New-Object psobject -Property @{ letter = [char]'B' ; label =   'PE' ; size = 25 }  # Active, bootmgr + winPE RAM-disk
-    New-Object psobject -Property @{ letter = [char]'O' ; label =   'OS' ; size = 75 }  # for windows
-    New-Object psobject -Property @{ letter = [char]'P' ; label = 'Data' ; size = 15 }  # for data, will be resized to max
+    New-Object psobject -Property @{ letter = [char]'A' ; label =   'PE' ; size = 25GB ; active = $true}  # Active, bootmgr + winPE RAM-disk
+    New-Object psobject -Property @{ letter = [char]'O' ; label =   'OS' ; size = 75GB ; active = $false}  # for windows
+    New-Object psobject -Property @{ letter = [char]'D' ; label = 'Data' ; size = 0 ; active = $false}  # for data, will be resized to max
 )
 
 
@@ -74,22 +74,27 @@ function Show-Menu
 
 function Test-Disk
 {
-    param ([switch]$skip = $false)
+    param (
+        $pos = 0,
+        [switch]$skip = $false
+        )
     
     begin
     {
         $CheckList = [ordered]@{}
         
-        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -imatch 'PE'}  # том загрузки PE и восстановления
+        # $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -imatch 'PE'}  # том загрузки PE и восстановления
         
-        if ($null -ne $wim_vol) { $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path} }
+        # if ($null -ne $wim_vol) { $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path} }
+        
+        # $wim_part = Get-Partition | Where-Object {$_.IsActive -eq $true}
     }
     
     process
     {
         foreach ($v in $volumes)
         {
-            $CheckList[$v.label] = (Get-Partition -DiskNumber $wim_part.DiskNumber <# -PartitionNumber ($volumes.IndexOf($v) + 1) #> -ErrorAction Stop | Get-Volume).FileSystemLabel -icontains $v.label
+            $CheckList[$v.label] = (Get-Partition -DiskNumber $pos -ErrorAction Stop | Get-Volume).FileSystemLabel -icontains $v.label
         }
         
         
@@ -186,35 +191,31 @@ function _Test-Wim
 
 function Edit-PartitionTable
 {
-    param ()
+    param (
+        $pos = 0
+    )
     
-    begin
-    {
-        $res = $false
-        
-        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match 'wim'}  # том с wim файлами
-        
-        if ($null -ne $wim_vol) { $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path} }
-    }
+    begin { $res = $false }
     
     process
     {
         try
         {
-            if ($null -ne $wim_part)
+            Clear-Disk -Number $pos -RemoveData -RemoveOEM -Confirm:$false
+                
+            foreach ($v in $volumes)
             {
-                Remove-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber (1..($wim_part.PartitionNumber - 1)) -confirm:$false -ErrorAction Stop
+                $params = @{
+                    'DiskNumber'  = $pos
+                    'DriveLetter' = $v.letter
+                    'ErrorAction' = 'Stop'
+                    'IsActive'    = $v.active
+                }
+                if ($v.size -gt 0) {$params['Size'] = $v.size} else {$params['UseMaximumSize'] = $true}
                 
-                New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'B') -Size  2GB -IsActive -ErrorAction Stop | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "BOOT" -ErrorAction Stop
-                
-                New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'O') -Size 78GB           -ErrorAction Stop | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "OS"   -ErrorAction Stop
-                
-                New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'P') -Size 17GB           -ErrorAction Stop | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "PE"   -ErrorAction Stop
-                
-                # Resize-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber 3 -Size (Get-PartitionSupportedSize -DiskNumber $wim_part.DiskNumber -PartitionNumber 3).SizeMax  # -ErrorAction Stop  # выдаёт ошибку 'The partition is already the requested size.'
+                New-Partition @params | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel $v.label -ErrorAction Stop }
                 
                 $res = $true
-            }
         }
         
         catch { $res = $false }
@@ -250,24 +251,24 @@ function Install-Wim
         {
             if ($PE)
             {
-                Expand-WindowsImage -ImagePath $wimsPE.FullName -ApplyPath "P:\" -Index 1 -ErrorAction Stop
+                # Expand-WindowsImage -ImagePath $wimsPE.FullName -ApplyPath "P:\" -Index 1 -ErrorAction Stop
                 
-                Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "P:\Windows", "/s B:", "/f ALL"
+                Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "A:\Windows", "/s A:", "/f ALL"
                 
                 
-                Copy-Item -Path ($ITfolder + '\PE') -Destination "P:\.IT\PE" -Recurse
+                # Copy-Item -Path ($ITfolder + '\PE') -Destination "P:\.IT\PE" -Recurse
                 
                 
                 # make RAM Disk object
                 bcdedit /create '{ramdiskoptions}' /d 'Windows PE, RAM DISK BOOT'
-                bcdedit /set    '{ramdiskoptions}' ramdisksdidevice 'partition=P:'
+                bcdedit /set    '{ramdiskoptions}' ramdisksdidevice 'partition=A:'
                 bcdedit /set    '{ramdiskoptions}' ramdisksdipath '\.IT\PE\boot.sdi'
                 (bcdedit /create /d "Windows PE, RAM DISK LOADER" /application osloader) -match '\{.*\}'  # "The entry '{e1679017-bc5a-11e9-89cf-a91b7c7227b0}' was successfully created."
                 $guid = $Matches[0]
                 
                 # make OS loader object
-                bcdedit /set $guid   device 'ramdisk=[P:]\.IT\PE\boot.wim,{ramdiskoptions}'
-                bcdedit /set $guid osdevice 'ramdisk=[P:]\.IT\PE\boot.wim,{ramdiskoptions}'
+                bcdedit /set $guid   device 'ramdisk=[A:]\.IT\PE\boot.wim,{ramdiskoptions}'
+                bcdedit /set $guid osdevice 'ramdisk=[A:]\.IT\PE\boot.wim,{ramdiskoptions}'
                 bcdedit /set $guid path '\Windows\System32\Boot\winload.exe'
                 bcdedit /set $guid systemroot '\Windows'
                 bcdedit /set $guid winpe yes
@@ -278,15 +279,15 @@ function Install-Wim
             
             else
             {
-                Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
+                # Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
-                Expand-WindowsImage -ImagePath $wimsOS.FullName -ApplyPath "O:\" -Index 1 -ErrorAction Stop
+                # Expand-WindowsImage -ImagePath $wimsOS.FullName -ApplyPath "O:\" -Index 1 -ErrorAction Stop
                 
-                bcdedit /delete '{default}' /cleanup  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
+                # bcdedit /delete '{default}' /cleanup  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
                 
-                Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "O:\Windows"
+                # Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "O:\Windows"
                 
-                # bcdedit /timeout 5
+                # # bcdedit /timeout 5
             }
             
             $res = $true
@@ -295,7 +296,7 @@ function Install-Wim
         catch { $res = $false }
     }
     
-    end {return $res}
+    end { return $res }
 }
 
 
@@ -655,19 +656,19 @@ function Use-Wenix
     
     process
     {
-        $cycle = $true ; while ($cycle)
+        $cycle = $true ; while ( $cycle )
         {
             $key = Show-Menu
             
-            switch ($key.key)
+            switch ( $key.key )
             {
-                {$_ -in @('D0', 'D7')}  # нажали 0 или 7
+                { $_ -in @( 'D0', 'D7' ) }  # нажали 0 или 7
                 {
                     "  <--     selected`n" | Out-Default
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
                     
-                    $ver = if ($_ -eq 'D7') { '7' } else { '10' }  # на выбор Windows 7 / 10
+                    $ver = if ( $_ -eq 'D7' ) { '7' } else { '10' }  # на выбор Windows 7 / 10
                     
                     
                     #region локальные источники
@@ -764,17 +765,51 @@ function Use-Wenix
                         #endregion
                         
                         
-                        $CheckDisk = Test-Disk -skip  # -skip для дебага
+                        #region re-store PE
+                        
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
                         
+                        if ( Test-Disk )
+                        # format PE, assign letter A:
+                        # re-copy PE, X:\Windows\System32\Boot to A:\Windows\System32\Boot
+                        {
+                        }
+                        else
+                        # clear disk
+                        # make partition
+                        {
+                            $log['Edit-PartitionTable'] = Edit-PartitionTable
+                            
+                            Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Edit-PartitionTable') #_#
+                        }
+                        
+                        if (
+                            (Copy-WithCheck -from 'X:\.IT\PE' -to 'A:\.IT\PE') -and 
+                            (Copy-WithCheck -from 'X:\Windows\System32\Boot' -to 'A:\Windows\System32\Boot')
+                        )
+                        {
+                            $log['Install-Wim PE'] = Install-Wim -vol 'wim' -ver $ver -PE  # накатываем PE c временного раздела ('wim' в метке тома)
+                        
+                            Write-Host "Install-Wim PE`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                            
+                            
+                            
+                            $log['backup ramdisk in memory'] = $true
+                        }
+                        else { $log['backup ramdisk in memory'] = $false }
+
                         
                         
-                        # 
+                        
+                        
+                        
+                        
+                        #endregion
                     }
                     
                     
                     $log['debug'] = $false
-                    if ($log.Values -notcontains $false) { <# Restart-Computer -Force #> } else { return }  # если все ок - перезагрузка, иначе - выход для отладки и ручных манипуляций
+                    if ($log.Values -notcontains $false) { Restart-Computer -Force } else { return }  # если все ок - перезагрузка, иначе - выход для отладки и ручных манипуляций
                 }
                 
                 'Escape'
