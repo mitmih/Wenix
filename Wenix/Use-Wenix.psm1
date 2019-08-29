@@ -80,7 +80,7 @@ function Test-Disk
     {
         $CheckList = [ordered]@{}
         
-        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -eq 'PE'}  # том загрузки PE и восстановления
+        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -imatch 'PE'}  # том загрузки PE и восстановления
         
         if ($null -ne $wim_vol) { $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path} }
     }
@@ -439,7 +439,7 @@ function Read-NetConfig
 }
 
 
-function Test-WimNet
+function Test-Wim
 {
     [CmdletBinding()]
     
@@ -458,7 +458,7 @@ function Test-WimNet
     {
         $valid = @()  # список сетевых шар: <имя>.wim доступен по пути ...\.IT\<версия_ОС>, его md5 совпадает с хэшем из <имя>.wim.md5
         
-        $local = $null -eq $SharesList  # показатель: нужно проверять файлы на локальном диске с меткой PE, а не в сети (в параметрах не передан список сетевых папок)
+        $local = $null -eq $SharesList  # показатель локальности поиска и проверок (в параметрах не передан список сетевых папок)
     }
     
     # логика поиска/контроля wim/md5 файлов на сетевых шарах подойдёт с минимальными изменениями и для локального PE раздела - нужно лишь превратить его в итерируемый объект (массив) с определёнными полями, тогда цикл с проверками не нужно будет дублировать для локального случая
@@ -466,20 +466,9 @@ function Test-WimNet
     {
         if ($local)  # формируем (одинаковую с сетевой) локальную коллекцию для проверки
         {
-            $LocalVol = (Get-Volume | Where-Object {$_.FileSystemLabel -match 'PE'})  # ищем том восстановления по метке
+            $places = @()
             
-            if ($LocalVol)  # переделаем найденный том в массив чтобы не переписывать цикл итерации по шарам
-            {
-                $psobj = (New-Object psobject | Select-Object -Property 'gw', 'netpath', 'user', 'password')
-                
-                $psobj.netpath     = [string] ($LocalVol.DriveLetter + ':')  # $psobj.gw          = '-'  # $psobj.user        = '-'  # $psobj.password    = '-'
-                
-                $places = @($psobj)  # локальная коллекция
-            }
-            else
-            {
-                $places = $null  # тома нет, проверять нечего
-            }
+            foreach ($lv in (Get-Volume | Where-Object {$null -ne $_.DriveLetter})) { $places += (New-Object psobject -Property @{'netpath' = ($lv.DriveLetter + ':')}) }  # локальная коллекция
         }
         else
         {
@@ -554,13 +543,14 @@ function Test-WimNet
             
             if ($CheckListWim.Values -contains $true)  # вывод в консоль успешных проверок
             {
-                Write-Host "    OK     $ver   $name.wim   $($s.netpath)    " -BackgroundColor DarkGreen
+                Write-Host ("    OK   {0}" -f $v.FilePath) -BackgroundColor DarkGreen
+            # Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
             }
             
             if ($CheckListWim.Values -contains $false)  # вывод проваленных проверок
             {
-                Write-Host "    FAIL   $ver   $name.wim   $($s.netpath)    " -BackgroundColor DarkRed
+                Write-Host ("    FAIL {0}" -f $v.FilePath) -BackgroundColor DarkRed
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
             }
             
@@ -614,46 +604,53 @@ function Use-Wenix
                 {
                     "  <--     selected`n" | Out-Default
                     
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') -ForegroundColor Yellow
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
                     
-                    $ver = if ($_ -eq 'D7') { '7' } else { '10' }
+                    $ver = if ($_ -eq 'D7') { '7' } else { '10' }  # на выбор Windows 7 / 10
+                    
+                    
+                    $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot'
+                    
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
+                    
+                    
+                    $OSsourses += Test-Wim -md5 -ver $ver -name 'install'
+                    
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local OS') #_#
                     
                     
                     $file = Find-NetConfig  # сетевой конфиг, должен лежать на томе ':\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C: D: etc
                     
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Find-NetConfig BootStrap.csv') -ForegroundColor Yellow
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Find-NetConfig BootStrap.csv') #_#
                     
                     
-                    if ($null -ne $file)  # поиск wim-файлов в сетевых источниках из конфига ':\.IT\PE\BootStrap.csv'
+                    if ($null -ne $file)  # поиск wim-файлов в источниках из сетевого конфига ':\.IT\PE\BootStrap.csv'
                     {
                         $shares += Read-NetConfig -file $file
                         
-                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig') -ForegroundColor Yellow
+                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig') #_#
                         
                         
-                        $PEsourses += Test-WimNet -md5 -ver 'PE' -name 'boot'    -SharesList $shares
+                        $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot'    -SharesList $shares
                         
-                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-WimNet NetWork PE') -ForegroundColor Yellow
+                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork PE') #_#
                         
                         
-                        $OSsourses += Test-WimNet -md5 -ver $ver -name 'install' -SharesList $shares
+                        $OSsourses += Test-Wim -md5 -ver $ver -name 'install' -SharesList $shares
                         
-                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-WimNet NetWork OS') -ForegroundColor Yellow
+                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork OS') #_#
                     }
                     
                     
                     $CheckDisk = Test-Disk -skip  # -skip для дебага
                     
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') -ForegroundColor Yellow
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
                     
-                    if ($CheckDisk)  # диск разбит как надо (есть три тома BOOT, OS, PE, кол-во томов = 3, стиль таблицы MBR)
-                    {
-                        $OSsourses += Test-WimNet -md5 -ver $ver -name 'install'
-                        
-                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-WimNet local OS') -ForegroundColor Yellow
-                    }
-                    else  # забэкапить файлы ram-диска (свежим boot.wim), переразметить диск, восстановить загрузку PE, перезаписать _OS том
-                    {
+                    # if ($CheckDisk)  # диск разбит как надо (есть три тома BOOT, OS, PE, кол-во томов = 3, стиль таблицы MBR)
+                    # {
+                    # }
+                    # else  # забэкапить файлы ram-диска (свежим boot.wim), переразметить диск, восстановить загрузку PE, перезаписать _OS том
+                    # {
                         if ($OSsourses.count -gt 0 -and $PEsourses.count -gt 0)  # можно начинать установку
                         {
                             $PEsourses = $PEsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, 'Priority'
@@ -664,96 +661,7 @@ function Use-Wenix
                         }
                         else  # отбой: установка не будет завершена - нет всех необходимых файлов
                         {}
-                    }
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-# if ($CheckDisk)  # если диск ОК (размечен как надо), то нужно проверить локальные ВИМ файлы
-# {
-#     $CheckWimLoc = Test-Wim -ver $ver -md5  # True / False, проверяет и PE boot.wim и $ver install.wim
-    
-#     if ($CheckWimLoc)  # можно перезаписать раздел с ОС, скопировать свежий boot.wim для RAM-диска
-#     {
-#         Write-Host "1st way: re-apply OS wim to 2_OS volume" -BackgroundColor Black
-#         # 
-#     }
-# }
-# else  # диск НЕ ОК, потребуется: сохранить RAM-диск на x:, переразметить ЖД, восстановить RAM-диск, записать том с ОС
-# # это будет возможно, если есть файлы install.wim для выбранной ОС
-# # нужно проверить wim-файлы на сетевых шарах из C:\.IT\PE\BootStrap.csv, где C: это том с ОС
-# {
-
-    
-#     if ($shares.Count -gt 0)  # если есть "живые" шары - нужно проверить наличие файлов и их контрольные суммы
-#     {
-#         $PEshares = Test-WimNet -SharesList $shares -ver 'PE' -name 'boot'    -md5 #:$false  # PE boot.wim по идее нет необходимости проверять - т.к. модуль работает из загруженного в RAM-диск файла
-#         $OSshares = Test-WimNet -SharesList $shares -ver $ver -name 'install' -md5 #:$false
-        
-#         if ($OSshares.Count -gt 0 -and $PEshares.Count -gt 0)  # файлы в порядке, можно приступать
-#         {
-#             Write-Host "2nd way: remap disk, apply PE and OS wim-files, copy wim-files to new PE volume" -BackgroundColor Black
-#             # 
-#         }
-#     }
-# }
-                    
-                    
-                    
-                    # $checkWim = if ($checkDisk) { Test-Wim -ver $ver -label "PE" -md5 } else { Test-Wim -ver $ver -label "wim" -md5 }
-                    
-                    # переделать чеки вим-файлов: может быть ситуация когда диск уже разбит, но файлов на PE ещё нет и нужно перезапустить установку, т.е. при новом диске использовать вим-файлы с временного раздела (напр. произошел сбой по питанию при заливке install.wim)
-                    # можно чекать wim-файлы независимо от состояния диска и использовать в первую очередь файлы с временного 'wim' тома
-                    
-                    # Write-Host "checked`t`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
-                    
-                    
-                    # if ( $checkDisk -and $checkWim)
-                    # # диск уже размечен как надо, и wim-файлы находятся на 3-ем разделе с меткой 'PE'
-                    # {
-                    #     Write-Host "1st way: re-apply OS wim to 2_OS volume" -BackgroundColor Black
-                        
-                    #     $log['Mount-Standart'] = Mount-Standart
-                        
-                    #     Write-Host "Mount-Standart`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
-                        
-                        
-                    #     $log['Install-Wim OS'] = Install-Wim -vol 'PE' -ver $ver      # накатываем ОС c временного раздела ('wim' в метке тома)
-                        
-                    #     Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                     # }
-                    
-                    # elseif (!$checkDisk -and $checkWim)
-                    # # диск ещё не размечен на три раздела, а wim-файлы находятся на доп. разделе с меткой 'wim'
-                    # {
-                    #     Write-Host "2nd way: remap disk, apply PE wim and OS wim, move wim-files to new PE volume" -BackgroundColor Black
-                        
-                        
-                    #     $log['Edit-PartitionTable'] = Edit-PartitionTable
-                        
-                    #     Write-Host "Edit-PartitionTable`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
-                        
-                        
-                    #     $log['Install-Wim PE'] = Install-Wim -vol 'wim' -ver $ver -PE  # накатываем PE c временного раздела ('wim' в метке тома)
-                        
-                    #     Write-Host "Install-Wim PE`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
-                        
-                        
-                    #     $log['Install-Wim OS'] = Install-Wim -vol 'wim' -ver $ver      # накатываем ОС c временного раздела ('wim' в метке тома)
-                        
-                    #     Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
-                        
-                        
-                    #     if ($log.Values -notcontains $false) { $log['Complete-PEPartition'] = Complete-PEPartition <# -ver $ver #> }  # завершающий этап: +wim-файлы на 'PE' раздел, -'wim' раздел, расширение 'PE' до max
-                        
-                    #     Write-Host "all DONE !`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
-                    # }
-                    
-                    # else { Write-Host "3 - NOT READY" -BackgroundColor Black}
                     
                     $log['debug'] = $false
                     if ($log.Values -notcontains $false) { <# Restart-Computer -Force #> } else { return }  # если все ок - перезагрузка, иначе - выход для отладки и ручных манипуляций
