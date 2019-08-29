@@ -1,3 +1,13 @@
+$volumes = @(
+    New-Object psobject -Property @{ letter = [char]'B' ; label =   'PE' ; size = 25 }  # Active, bootmgr + winPE RAM-disk
+    New-Object psobject -Property @{ letter = [char]'O' ; label =   'OS' ; size = 75 }  # for windows
+    New-Object psobject -Property @{ letter = [char]'P' ; label = 'Data' ; size = 15 }  # for data, will be resized to max
+)
+
+
+$retry = 2  # кол-во попыток скопировать install.wim на PE раздел с проверкой md5 после копирования
+
+
 function Show-Menu
 {
 <#
@@ -70,28 +80,20 @@ function Test-Disk
     {
         $CheckList = [ordered]@{}
         
-        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}  # том загрузки PE и восстановления
+        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -eq 'PE'}  # том загрузки PE и восстановления
         
         if ($null -ne $wim_vol) { $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path} }
-        
-        $volumes = @(
-            '_BOOT'
-            '_OS'
-            '_PE'
-        )
-        
-        # 
     }
     
     process
     {
         foreach ($v in $volumes)
         {
-            $CheckList[$v] = (Get-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber ($volumes.IndexOf($v) + 1) -ErrorAction Stop | Get-Volume).FileSystemLabel -match $v
+            $CheckList[$v.label] = (Get-Partition -DiskNumber $wim_part.DiskNumber <# -PartitionNumber ($volumes.IndexOf($v) + 1) #> -ErrorAction Stop | Get-Volume).FileSystemLabel -icontains $v.label
         }
         
         
-        $CheckList['partition count']= (Get-Partition -DiskNumber $wim_part.DiskNumber).Length -eq 3
+        $CheckList['partition count']= (Get-Partition -DiskNumber $wim_part.DiskNumber).Length -eq $volumes.Count
         
         $CheckList['partition table']= (Get-Disk -Number $wim_part.DiskNumber).PartitionStyle -match 'MBR'
     }
@@ -125,9 +127,9 @@ function Test-Wim
     {
         $CheckList = [ordered]@{}
         
-        $PE = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}).DriveLetter):\.IT\PE"
+        $PE = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match 'PE'}).DriveLetter):\.IT\PE"
         
-        $OS = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'}).DriveLetter):\.IT\$ver"
+        $OS = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match 'PE'}).DriveLetter):\.IT\$ver"
     }
     
     process
@@ -200,11 +202,11 @@ function Edit-PartitionTable
             {
                 Remove-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber (1..($wim_part.PartitionNumber - 1)) -confirm:$false -ErrorAction Stop
                 
-                New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'B') -Size  2GB -IsActive -ErrorAction Stop | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "1_BOOT" -ErrorAction Stop
+                New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'B') -Size  2GB -IsActive -ErrorAction Stop | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "BOOT" -ErrorAction Stop
                 
-                New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'O') -Size 78GB           -ErrorAction Stop | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "2_OS"   -ErrorAction Stop
+                New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'O') -Size 78GB           -ErrorAction Stop | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "OS"   -ErrorAction Stop
                 
-                New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'P') -Size 17GB           -ErrorAction Stop | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "3_PE"   -ErrorAction Stop
+                New-Partition -DiskNumber $wim_part.DiskNumber -DriveLetter ([Char]'P') -Size 17GB           -ErrorAction Stop | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel "PE"   -ErrorAction Stop
                 
                 # Resize-Partition -DiskNumber $wim_part.DiskNumber -PartitionNumber 3 -Size (Get-PartitionSupportedSize -DiskNumber $wim_part.DiskNumber -PartitionNumber 3).SizeMax  # -ErrorAction Stop  # выдаёт ошибку 'The partition is already the requested size.'
                 
@@ -221,7 +223,7 @@ function Edit-PartitionTable
 
 function Install-Wim
 {
-    param ($vol, $ver, [switch]$PE=$false)
+    param ($vol, $ver, [switch]$PE = $false)
     
     begin
     {
@@ -273,7 +275,7 @@ function Install-Wim
             
             else
             {
-                Format-Volume -FileSystemLabel '2_OS' -NewFileSystemLabel '2_OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
+                Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
                 Expand-WindowsImage -ImagePath $wimsOS.FullName -ApplyPath "O:\" -Index 1 -ErrorAction Stop
                 
@@ -281,7 +283,7 @@ function Install-Wim
                 
                 Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "O:\Windows"
                 
-                bcdedit /timeout 5
+                # bcdedit /timeout 5
             }
             
             $res = $true
@@ -456,7 +458,7 @@ function Test-WimNet
     {
         $valid = @()  # список сетевых шар: <имя>.wim доступен по пути ...\.IT\<версия_ОС>, его md5 совпадает с хэшем из <имя>.wim.md5
         
-        $local = $null -eq $SharesList  # показатель: нужно проверять файлы на локальном диске с меткой _PE, а не в сети (в параметрах не передан список сетевых папок)
+        $local = $null -eq $SharesList  # показатель: нужно проверять файлы на локальном диске с меткой PE, а не в сети (в параметрах не передан список сетевых папок)
     }
     
     # логика поиска/контроля wim/md5 файлов на сетевых шарах подойдёт с минимальными изменениями и для локального PE раздела - нужно лишь превратить его в итерируемый объект (массив) с определёнными полями, тогда цикл с проверками не нужно будет дублировать для локального случая
@@ -464,7 +466,7 @@ function Test-WimNet
     {
         if ($local)  # формируем (одинаковую с сетевой) локальную коллекцию для проверки
         {
-            $LocalVol = (Get-Volume | Where-Object {$_.FileSystemLabel -match '_PE'})  # ищем том восстановления по метке
+            $LocalVol = (Get-Volume | Where-Object {$_.FileSystemLabel -match 'PE'})  # ищем том восстановления по метке
             
             if ($LocalVol)  # переделаем найденный том в массив чтобы не переписывать цикл итерации по шарам
             {
@@ -589,6 +591,8 @@ function Use-Wenix
     
     begin
     {
+        $WatchDogTimer = [system.diagnostics.stopwatch]::startNew()
+        
         $log = [ordered]@{}
         
         $PEsourses = @()  # набор источников файлов для сортировки и выбора самого свежего wim-файла
@@ -610,9 +614,6 @@ function Use-Wenix
                 {
                     "  <--     selected`n" | Out-Default
                     
-                    $WatchDogTimer = [system.diagnostics.stopwatch]::startNew()
-                    
-                    
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') -ForegroundColor Yellow
                     
                     $ver = if ($_ -eq 'D7') { '7' } else { '10' }
@@ -623,7 +624,7 @@ function Use-Wenix
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Find-NetConfig BootStrap.csv') -ForegroundColor Yellow
                     
                     
-                    if ($null -ne $file)  # сетевой конфиг ':\.IT\PE\BootStrap.csv' найден
+                    if ($null -ne $file)  # поиск wim-файлов в сетевых источниках из конфига ':\.IT\PE\BootStrap.csv'
                     {
                         $shares += Read-NetConfig -file $file
                         
@@ -641,38 +642,29 @@ function Use-Wenix
                     }
                     
                     
-                    $CheckDisk = Test-Disk -skip
+                    $CheckDisk = Test-Disk -skip  # -skip для дебага
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') -ForegroundColor Yellow
                     
-                    if ($CheckDisk)
+                    if ($CheckDisk)  # диск разбит как надо (есть три тома BOOT, OS, PE, кол-во томов = 3, стиль таблицы MBR)
                     {
-                        $PEsourses += Test-WimNet -md5 -ver 'PE' -name 'boot'
-                        
-                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-WimNet local PE') -ForegroundColor Yellow
-                        
-                        
                         $OSsourses += Test-WimNet -md5 -ver $ver -name 'install'
                         
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-WimNet local OS') -ForegroundColor Yellow
                     }
-                    
-                    
-                    
-                    if ($PEsourses.count -gt 0 -and $OSsourses.count -gt 0)  # можно начинать установку
+                    else  # забэкапить файлы ram-диска (свежим boot.wim), переразметить диск, восстановить загрузку PE, перезаписать _OS том
                     {
-                        $PEsourses = $PEsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $false}, 'Priority'
-                        $OSsourses = $OSsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $false}, 'Priority'
-                        
-                        $PEsourses, $OSsourses | Format-Table *
-                        
-                        if ($CheckDisk)  # освежить PE при необходимости (сравнить даты), перезаписать _OS том
-                        {}
-                        else  # забэкапить файлы ram-диска (свежим boot.wim), переразметить диск, восстановить загрузку PE, перезаписать _OS том
+                        if ($OSsourses.count -gt 0 -and $PEsourses.count -gt 0)  # можно начинать установку
+                        {
+                            $PEsourses = $PEsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, 'Priority'
+                            
+                            $OSsourses = $OSsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, 'Priority'
+                            
+                            $PEsourses, "`n", $OSsourses | Format-Table *
+                        }
+                        else  # отбой: установка не будет завершена - нет всех необходимых файлов
                         {}
                     }
-                    else  # отбой: установка не будет завершена - нет всех необходимых файлов
-                    {}
                     
                     
                     
@@ -704,7 +696,7 @@ function Use-Wenix
         
 #         if ($OSshares.Count -gt 0 -and $PEshares.Count -gt 0)  # файлы в порядке, можно приступать
 #         {
-#             Write-Host "2nd way: remap disk, apply PE and OS wim-files, copy wim-files to new 3_PE volume" -BackgroundColor Black
+#             Write-Host "2nd way: remap disk, apply PE and OS wim-files, copy wim-files to new PE volume" -BackgroundColor Black
 #             # 
 #         }
 #     }
@@ -712,16 +704,16 @@ function Use-Wenix
                     
                     
                     
-                    # $checkWim = if ($checkDisk) { Test-Wim -ver $ver -label "_PE" -md5 } else { Test-Wim -ver $ver -label "wim" -md5 }
+                    # $checkWim = if ($checkDisk) { Test-Wim -ver $ver -label "PE" -md5 } else { Test-Wim -ver $ver -label "wim" -md5 }
                     
-                    # переделать чеки вим-файлов: может быть ситуация когда диск уже разбит, но файлов на 3_PE ещё нет и нужно перезапустить установку, т.е. при новом диске использовать вим-файлы с временного раздела (напр. произошел сбой по питанию при заливке install.wim)
+                    # переделать чеки вим-файлов: может быть ситуация когда диск уже разбит, но файлов на PE ещё нет и нужно перезапустить установку, т.е. при новом диске использовать вим-файлы с временного раздела (напр. произошел сбой по питанию при заливке install.wim)
                     # можно чекать wim-файлы независимо от состояния диска и использовать в первую очередь файлы с временного 'wim' тома
                     
                     # Write-Host "checked`t`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                     
                     
                     # if ( $checkDisk -and $checkWim)
-                    # # диск уже размечен как надо, и wim-файлы находятся на 3-ем разделе с меткой '3_PE'
+                    # # диск уже размечен как надо, и wim-файлы находятся на 3-ем разделе с меткой 'PE'
                     # {
                     #     Write-Host "1st way: re-apply OS wim to 2_OS volume" -BackgroundColor Black
                         
@@ -730,7 +722,7 @@ function Use-Wenix
                     #     Write-Host "Mount-Standart`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                         
                         
-                    #     $log['Install-Wim OS'] = Install-Wim -vol '3_PE' -ver $ver      # накатываем ОС c временного раздела ('wim' в метке тома)
+                    #     $log['Install-Wim OS'] = Install-Wim -vol 'PE' -ver $ver      # накатываем ОС c временного раздела ('wim' в метке тома)
                         
                     #     Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                     # }
@@ -738,7 +730,7 @@ function Use-Wenix
                     # elseif (!$checkDisk -and $checkWim)
                     # # диск ещё не размечен на три раздела, а wim-файлы находятся на доп. разделе с меткой 'wim'
                     # {
-                    #     Write-Host "2nd way: remap disk, apply PE wim and OS wim, move wim-files to new 3_PE volume" -BackgroundColor Black
+                    #     Write-Host "2nd way: remap disk, apply PE wim and OS wim, move wim-files to new PE volume" -BackgroundColor Black
                         
                         
                     #     $log['Edit-PartitionTable'] = Edit-PartitionTable
@@ -756,7 +748,7 @@ function Use-Wenix
                     #     Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                         
                         
-                    #     if ($log.Values -notcontains $false) { $log['Complete-PEPartition'] = Complete-PEPartition <# -ver $ver #> }  # завершающий этап: +wim-файлы на '3_PE' раздел, -'wim' раздел, расширение '3_PE' до max
+                    #     if ($log.Values -notcontains $false) { $log['Complete-PEPartition'] = Complete-PEPartition <# -ver $ver #> }  # завершающий этап: +wim-файлы на 'PE' раздел, -'wim' раздел, расширение 'PE' до max
                         
                     #     Write-Host "all DONE !`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                     # }
