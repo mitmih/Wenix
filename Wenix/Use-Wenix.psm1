@@ -1,5 +1,5 @@
 $volumes = @(
-    New-Object psobject -Property @{ letter = [char]'A' ; label =   'PE' ; size = 25GB ; active = $true}  # Active, bootmgr + winPE RAM-disk
+    New-Object psobject -Property @{ letter = [char]'B' ; label =   'PE' ; size = 25GB ; active = $true}  # Active, bootmgr + winPE RAM-disk
     New-Object psobject -Property @{ letter = [char]'O' ; label =   'OS' ; size = 75GB ; active = $false}  # for windows
     New-Object psobject -Property @{ letter = [char]'D' ; label = 'Data' ; size = 0 ; active = $false}  # for data, will be resized to max
 )
@@ -98,9 +98,9 @@ function Test-Disk
         }
         
         
-        $CheckList['partition count']= (Get-Partition -DiskNumber $wim_part.DiskNumber).Length -eq $volumes.Count
+        $CheckList['partition count']= (Get-Partition -DiskNumber $pos).Length -eq $volumes.Count
         
-        $CheckList['partition table']= (Get-Disk -Number $wim_part.DiskNumber).PartitionStyle -match 'MBR'
+        $CheckList['partition table']= (Get-Disk -Number $pos).PartitionStyle -match 'MBR'
     }
     
     end
@@ -202,7 +202,9 @@ function Edit-PartitionTable
         try
         {
             Clear-Disk -Number $pos -RemoveData -RemoveOEM -Confirm:$false
-                
+            
+            Initialize-Disk -Number $pos -PartitionStyle MBR
+            
             foreach ($v in $volumes)
             {
                 $params = @{
@@ -218,7 +220,10 @@ function Edit-PartitionTable
                 $res = $true
         }
         
-        catch { $res = $false }
+        catch {
+            $res = $false
+            $Error | Out-Default
+        }
     }
     
     end { return $res }
@@ -227,22 +232,22 @@ function Edit-PartitionTable
 
 function Install-Wim
 {
-    param ($vol, $ver, [switch]$PE = $false)
+    param ($vol = '', $ver = '', [switch]$PE = $false)
     
     begin
     {
         $res = $false
         
-        $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match $vol}
+        # $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match $vol}
         
-        $ITfolder = $wim_vol.DriveLetter + ':\.IT'
+        # $ITfolder = $wim_vol.DriveLetter + ':\.IT'
         
-        if (Test-Path $ITfolder)
-        {
-            $wimsOS = Get-ChildItem -Filter 'install.wim' -Path "$ITfolder\$ver"
+        # if (Test-Path $ITfolder)
+        # {
+        #     $wimsOS = Get-ChildItem -Filter 'install.wim' -Path "$ITfolder\$ver"
             
-            $wimsPE = Get-ChildItem -Filter 'boot.wim'    -Path "$ITfolder\PE"
-        }
+        #     $wimsPE = Get-ChildItem -Filter 'boot.wim'    -Path "$ITfolder\PE"
+        # }
     }
     
     process
@@ -251,9 +256,9 @@ function Install-Wim
         {
             if ($PE)
             {
-                # Expand-WindowsImage -ImagePath $wimsPE.FullName -ApplyPath "P:\" -Index 1 -ErrorAction Stop
+                Expand-WindowsImage -ImagePath $wimsPE.FullName -ApplyPath "P:\" -Index 1 -ErrorAction Stop
                 
-                Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "A:\Windows", "/s A:", "/f ALL"
+                Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "B:\Windows", "/s B:", "/f ALL"
                 
                 
                 # Copy-Item -Path ($ITfolder + '\PE') -Destination "P:\.IT\PE" -Recurse
@@ -261,14 +266,14 @@ function Install-Wim
                 
                 # make RAM Disk object
                 bcdedit /create '{ramdiskoptions}' /d 'Windows PE, RAM DISK BOOT'
-                bcdedit /set    '{ramdiskoptions}' ramdisksdidevice 'partition=A:'
+                bcdedit /set    '{ramdiskoptions}' ramdisksdidevice 'partition=B:'
                 bcdedit /set    '{ramdiskoptions}' ramdisksdipath '\.IT\PE\boot.sdi'
                 (bcdedit /create /d "Windows PE, RAM DISK LOADER" /application osloader) -match '\{.*\}'  # "The entry '{e1679017-bc5a-11e9-89cf-a91b7c7227b0}' was successfully created."
                 $guid = $Matches[0]
                 
                 # make OS loader object
-                bcdedit /set $guid   device 'ramdisk=[A:]\.IT\PE\boot.wim,{ramdiskoptions}'
-                bcdedit /set $guid osdevice 'ramdisk=[A:]\.IT\PE\boot.wim,{ramdiskoptions}'
+                bcdedit /set $guid   device 'ramdisk=[B:]\.IT\PE\boot.wim,{ramdiskoptions}'
+                bcdedit /set $guid osdevice 'ramdisk=[B:]\.IT\PE\boot.wim,{ramdiskoptions}'
                 bcdedit /set $guid path '\Windows\System32\Boot\winload.exe'
                 bcdedit /set $guid systemroot '\Windows'
                 bcdedit /set $guid winpe yes
@@ -712,7 +717,7 @@ function Use-Wenix
                     #endregion
                     
                     
-                    if ( !($OSsourses.count -gt 0 <# -and $PEsourses.count -gt 0 #>) )
+                    if ( !($OSsourses.count -gt 0 -or $PEsourses.count -gt 0) )  # BUG HERE
                     # отбой: один или оба источника пустые, установка не будет завершена
                     {
                         $log['empty source PE'] = $OSsourses.count -eq 0
@@ -770,9 +775,10 @@ function Use-Wenix
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
                         
                         if ( Test-Disk )
-                        # format PE, assign letter A:
-                        # re-copy PE, X:\Windows\System32\Boot to A:\Windows\System32\Boot
+                        # format PE, assign letter B:
+                        # re-copy PE, X:\Windows\System32\Boot to B:\Windows\System32\Boot
                         {
+                            $log['Edit-PartitionTable'] = Edit-PartitionTable
                         }
                         else
                         # clear disk
@@ -784,25 +790,15 @@ function Use-Wenix
                         }
                         
                         if (
-                            (Copy-WithCheck -from 'X:\.IT\PE' -to 'A:\.IT\PE') -and 
-                            (Copy-WithCheck -from 'X:\Windows\System32\Boot' -to 'A:\Windows\System32\Boot')
-                        )
+                            (Copy-WithCheck -from 'X:\.IT\PE' -to 'B:\.IT\PE')<#  -and 
+                            (Copy-WithCheck -from 'X:\Windows\System32' -to 'B:\Windows\System32') #>
+                            )
                         {
-                            $log['Install-Wim PE'] = Install-Wim -vol 'wim' -ver $ver -PE  # накатываем PE c временного раздела ('wim' в метке тома)
-                        
-                            Write-Host "Install-Wim PE`t`t", $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                            $log['Install-Wim PE'] = Install-Wim -PE
                             
-                            
-                            
-                            $log['backup ramdisk in memory'] = $true
+                            Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim -PE', $log['Install-Wim PE']) #_#
                         }
                         else { $log['backup ramdisk in memory'] = $false }
-
-                        
-                        
-                        
-                        
-                        
                         
                         #endregion
                     }
