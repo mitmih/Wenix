@@ -591,8 +591,6 @@ function Copy-WithCheck  # копирует из папки в папку с п�
     {
         $res = @()
         
-        if( !(Test-Path -Path $to) ) { New-Item -ItemType Directory -Path $to }
-        
         $filesFrom = Get-ChildItem -Recurse -Path $from | Get-FileHash -Algorithm MD5
     }
     
@@ -600,13 +598,15 @@ function Copy-WithCheck  # копирует из папки в папку с п�
     {
         try
         {
+            if( !(Test-Path -Path $to) ) { New-Item -ItemType Directory -Path $to -ErrorAction Stop}
+            
             for ($i = 0; $i -lt $retry; $i++)  # множественные попытки копирования
             {
                 foreach ($file in $filesFrom)
                 {
                     $name = $file[0].Path.Split('\')[-1]
                     
-                    Copy-Item -Path $file.Path -Destination "$to\$name"
+                    Copy-Item -Path $file.Path -Destination "$to\$name" -ErrorAction Stop
                     
                     $res += (Get-FileHash -Algorithm MD5 -Path "$to\$name").Hash -eq $file.Hash
                 }
@@ -670,11 +670,6 @@ function Use-Wenix
                     $ver = if ($_ -eq 'D7') { '7' } else { '10' }  # на выбор Windows 7 / 10
                     
                     
-                    # $CheckDisk = Test-Disk -skip  # -skip для дебага
-                    
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
-                    
-                    
                     #region локальные источники
                     
                     $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot'
@@ -730,16 +725,47 @@ function Use-Wenix
                         
                         $OSsourses = $OSsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, 'Priority'
                         
-                        $PEsourses, "`n", $OSsourses | Format-Table *
+                        
+                        #region RAMdisk to memory
+                        
+                        $FTparams = @{
+                            'Property' = @(
+                                # 'gw' , 
+                                # 'netpath'
+                                # 'password'
+                                # 'user'
+                                # 'FileExist'
+                                # 'md5ok'
+                                # 'FilePath'
+                                'OS'
+                                'FileName'
+                                'FileSize'
+                                'Root'
+                                'date2mod'
+                                'Priority'
+                        )}
+                        
+                        $PEsourses, "`n", $OSsourses | Select-Object @FTparams | Format-Table *
+                        
                         
                         foreach ($PEwim in $PEsourses)
                         {
-                            if ( (Copy-WithCheck -from $PEwim.Root -to 'X:\.IT\PE') ) { break }
+                            if ( (Copy-WithCheck -from $PEwim.Root -to 'X:\.IT\PE') )
+                            {
+                                $log['backup ramdisk in memory'] = $true
+                                
+                                break
+                            }
+                            else { $log['backup ramdisk in memory'] = $false }
                         }
                         
+                        if (!$log['backup ramdisk in memory']) { return }
+                        
+                        #endregion
                         
                         
-                        
+                        $CheckDisk = Test-Disk -skip  # -skip для дебага
+                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
                         
                         
                         
