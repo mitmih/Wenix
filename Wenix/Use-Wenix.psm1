@@ -102,14 +102,15 @@ function Test-Disk
     {
         if ($CheckList.Values -contains $true)
         {
-            Write-Host '    disk OK     checks                  ' -BackgroundColor DarkGreen
+            Write-Host ("    disk {0} OK     checks {2,52} {1}:" -f $wim_part.DiskNumber, $wim_vol.DriveLetter, $wim_vol.FileSystemLabel) -BackgroundColor DarkGreen
+            
             $CheckList.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
         }
         
         if ($CheckList.Values -contains $false)
         {
-            Write-Host ("     {0} FAILED checks {1} {2}" -f $wim_part.DiskNumber, $wim_vol.DriveLetter, $wim_vol.FileSystemLabel) -BackgroundColor DarkRed
-            # Write-Host '    disk FAILED checks                  ' -BackgroundColor DarkRed
+            Write-Host ("    disk {0} FAILED checks {2,52} {1}:" -f $wim_part.DiskNumber, $wim_vol.DriveLetter, $wim_vol.FileSystemLabel) -BackgroundColor DarkRed
+            
             $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
         }
         
@@ -469,7 +470,16 @@ function Test-Wim
         {
             $places = @()
             
-            foreach ($lv in (Get-Volume | Where-Object {$null -ne $_.DriveLetter})) { $places += (New-Object psobject -Property @{'netpath' = ($lv.DriveLetter + ':')}) }  # локальная коллекция
+            foreach ($lv in (Get-Volume | Where-Object {$null -ne $_.DriveLetter}))
+            # локальная коллекция
+            {
+                $places += (New-Object psobject -Property @{
+                        "gw"        = $null
+                        'netpath'   = ($lv.DriveLetter + ':')
+                        "user"      = $null
+                        "password"  = $null
+                    })
+            }
         }
         else
         {
@@ -565,6 +575,19 @@ function Test-Wim
 }
 
 
+function Copy-WithCheck
+{
+    param (
+        $from,
+        $to,
+        
+    )
+    begin {}
+    process {}
+    end {}
+}
+
+
 function f2
 {
     param ()
@@ -608,6 +631,13 @@ function Use-Wenix
                     $ver = if ($_ -eq 'D7') { '7' } else { '10' }  # на выбор Windows 7 / 10
                     
                     
+                    $CheckDisk = Test-Disk -skip  # -skip для дебага
+                    
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
+                    
+                    
+                    #region локальные источники
+                    
                     $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot'
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
@@ -617,6 +647,10 @@ function Use-Wenix
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local OS') #_#
                     
+                    #endregion
+                    
+                    
+                    #region  сетевые источники
                     
                     $file = Find-NetConfig  # сетевой конфиг, должен лежать на томе ':\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C: D: etc
                     
@@ -640,27 +674,40 @@ function Use-Wenix
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork OS') #_#
                     }
                     
+                    #endregion
                     
-                    $CheckDisk = Test-Disk -skip  # -skip для дебага
                     
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
-                    
-                    # if ($CheckDisk)  # диск разбит как надо (есть три тома BOOT, OS, PE, кол-во томов = 3, стиль таблицы MBR)
-                    # {
-                    # }
-                    # else  # забэкапить файлы ram-диска (свежим boot.wim), переразметить диск, восстановить загрузку PE, перезаписать _OS том
-                    # {
-                        if ($OSsourses.count -gt 0 -and $PEsourses.count -gt 0)  # можно начинать установку
+                    if ( !($OSsourses.count -gt 0 <# -and $PEsourses.count -gt 0 #>) )
+                    # отбой: один или оба источника пустые, установка не будет завершена
+                    {
+                        $log['empty source PE'] = $OSsourses.count -eq 0
+                        
+                        $log['empty source OS'] = $PEsourses.count -eq 0
+                    }
+                    else
+                    # можно начинать установку
+                    {
+                        $PEsourses = $PEsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, 'Priority'
+                        
+                        $OSsourses = $OSsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, 'Priority'
+                        
+                        $PEsourses, "`n", $OSsourses | Format-Table *
+                        
+                        foreach ($PEwim in $PEsourses)
                         {
-                            $PEsourses = $PEsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, 'Priority'
-                            
-                            $OSsourses = $OSsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, 'Priority'
-                            
-                            $PEsourses, "`n", $OSsourses | Format-Table *
+                            if (Copy-WithCheck -from $PEwim.FilePath -to 
+                            ) { break }
                         }
-                        else  # отбой: установка не будет завершена - нет всех необходимых файлов
-                        {}
-                    # }
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        # 
+                    }
+                    
                     
                     $log['debug'] = $false
                     if ($log.Values -notcontains $false) { <# Restart-Computer -Force #> } else { return }  # если все ок - перезагрузка, иначе - выход для отладки и ручных манипуляций
