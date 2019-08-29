@@ -5,7 +5,7 @@ $volumes = @(
 )
 
 
-$retry = 2  # кол-во попыток скопировать install.wim на PE раздел с проверкой md5 после копирования
+# $RetryCount = 2  # кол-во попыток скопировать install.wim на PE раздел с проверкой md5 после копирования
 
 
 function Show-Menu
@@ -113,6 +113,7 @@ function Test-Disk
             
             $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
         }
+        
         
         if ($skip) { return $true } else { return ( $CheckList.count -gt 0 -and $CheckList.Values -notcontains $false ) }
     }
@@ -559,12 +560,12 @@ function Test-Wim
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
             }
             
-            if ($CheckListWim.Values -contains $false)  # вывод проваленных проверок
-            {
-                Write-Host ("    FAIL        {0,-64}" -f $v.FilePath) -BackgroundColor DarkRed
+            # if ($CheckListWim.Values -contains $false)  # вывод проваленных проверок
+            # {
+            #     Write-Host ("    FAIL        {0,-64}" -f $v.FilePath) -BackgroundColor DarkRed
                 
-                $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
-            }
+            #     $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
+            # }
             
             
             $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # список проверенных источников файлов
@@ -578,7 +579,7 @@ function Test-Wim
 }
 
 
-function Copy-WithCheck
+function Copy-WithCheck  # копирует из папки в папку с проверкой md5
 {
     param (
         $from,
@@ -593,30 +594,36 @@ function Copy-WithCheck
         if( !(Test-Path -Path $to) ) { New-Item -ItemType Directory -Path $to }
         
         $filesFrom = Get-ChildItem -Recurse -Path $from | Get-FileHash -Algorithm MD5
-        # 
     }
     
     process
     {
-        foreach ($file in $filesFrom)
+        try
         {
-            $name = $file[0].Path.split('\')[-1]
-            Copy-Item -Path $file.Path -Destination "$to\$name"
-            $res += (Get-FileHash -Algorithm MD5 -Path "$to\$name").Hash -eq $file.Hash
+            for ($i = 0; $i -lt $retry; $i++)  # множественные попытки копирования
+            {
+                foreach ($file in $filesFrom)
+                {
+                    $name = $file[0].Path.Split('\')[-1]
+                    
+                    Copy-Item -Path $file.Path -Destination "$to\$name"
+                    
+                    $res += (Get-FileHash -Algorithm MD5 -Path "$to\$name").Hash -eq $file.Hash
+                }
+                
+                if ($res -notcontains $false) { break }  # копирование было успешным
+            }
         }
         
+        catch { $res += $false }
         
-        
-        
-        
-        
-        
-        
-        $res | Out-Default
-        #
+        $res = $res -notcontains $false
+
+        Write-Host ( '{4} copy from {0,10} to {1,10} was {2,-10} {3,24}' -f $from, $to, $res, '', $(if ($res) {'OK'} else {'FAIL'}) ) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
     }
     
-    end { $res.count -gt 0 -and $res -notcontains $false }
+    # end { return ($res.count -gt 0 -and $res -notcontains $false) }
+    end { return $res }
 }
 
 
