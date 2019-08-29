@@ -108,7 +108,8 @@ function Test-Disk
         
         if ($CheckList.Values -contains $false)
         {
-            Write-Host '    disk FAILED checks                  ' -BackgroundColor DarkRed
+            Write-Host ("     {0} FAILED checks {1} {2}" -f $wim_part.DiskNumber, $wim_vol.DriveLetter, $wim_vol.FileSystemLabel) -BackgroundColor DarkRed
+            # Write-Host '    disk FAILED checks                  ' -BackgroundColor DarkRed
             $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
         }
         
@@ -117,7 +118,7 @@ function Test-Disk
 }
 
 
-function Test-Wim
+function _Test-Wim
 {
     [CmdletBinding()]
     
@@ -506,16 +507,13 @@ function Test-Wim
                 
                 $v.FilePath = $file.FullName
                 
-                $v.FileSize = ('{0:N0}' -f ($file.Length / 1MB)) + ' MB'
-                
+                $v.FileSize = ('{0,6:N0} MB' -f ($file.Length / 1MB))
                 
                 $v.date2mod = $file.LastWriteTimeUtc  # LastWriteTime это метка изменения содержимого файла и она сохраняется при копировании, т.е. если в процессе deploy`я wim-файлов по конечным сетевым папкам и дискам этот атрибут сохранится - его можно использовать для выбора самого свежего файла для развёртывания
-                # $v.date1rec = $file.CreationTimeUtc
-                # $v.date3acc = $file.LastAccessTimeUtc
                 
-                $v.Priority = if ($local) {0} else {1}  # понадобится в Use-Wenix: если диск ОК, то при одинаковых датах приоритет будет выше у локального файла
+                $v.Priority = if ($local) {0} else {1}  # приоритет при выборе источника будет выше у локальных файлов
                 
-                if ($md5)  # проверка md5 если есть контролькой
+                if ($md5)  # проверка md5 если есть контролька
                 {
                     if (Test-Path -Path "$OSdir\$name.wim.md5")
                     {
@@ -532,7 +530,7 @@ function Test-Wim
                     
                     $CheckListWim[("$name md5`t" + $s.netpath)] = $v.md5ok
                 }
-                else  # при отключённой проверке md5 - принимаем, что она ок
+                else
                 {
                     $v.md5ok = $true
                     
@@ -543,14 +541,15 @@ function Test-Wim
             
             if ($CheckListWim.Values -contains $true)  # вывод в консоль успешных проверок
             {
-                Write-Host ("    OK   {0}" -f $v.FilePath) -BackgroundColor DarkGreen
-            # Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
+                Write-Host ("    OK          {0,-64}" -f $v.FilePath) -BackgroundColor DarkGreen
+                
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
             }
             
             if ($CheckListWim.Values -contains $false)  # вывод проваленных проверок
             {
-                Write-Host ("    FAIL {0}" -f $v.FilePath) -BackgroundColor DarkRed
+                Write-Host ("    FAIL        {0,-64}" -f $v.FilePath) -BackgroundColor DarkRed
+                
                 $CheckListWim.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
             }
             
