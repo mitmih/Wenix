@@ -6,6 +6,8 @@ Get-PSDrive -PSProvider FileSystem | Select-Object Name, Root, Description, Free
 Start-Process -FilePath "$env:SystemDrive\UltraVNC\winvnc.exe"`
 Start-Process -FilePath 'wpeutil' -ArgumentList 'InitializeNetwork', '/NoWait'`
 Start-Process -FilePath 'wpeutil' -ArgumentList 'DisableFirewall'
+`
+Clear-Host`
 Get-Module -Name Wenix | Remove-Module`
 Import-Module -Force Wenix`
 Use-Wenix
