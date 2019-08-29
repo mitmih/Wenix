@@ -498,9 +498,10 @@ function Test-Wim
                 $drive = New-PSDrive -NAME ($ver + '_' + $name + '_wim') -PSProvider FileSystem -Root $s.netpath -Credential $cred <# -ErrorAction Stop #>
             }
             
+            
             $OSdir = $s.netpath + "\.IT\$ver"
             
-            $v = $s | Select-Object -Property *, 'OS', 'FileName', 'FileExist', 'md5ok', 'date2mod', 'Priority', 'FilePath', 'FileSize'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty уже существует
+            $v = $s | Select-Object -Property *, 'OS', 'FileName', 'FileExist', 'md5ok', 'date2mod', 'Priority', 'FilePath', 'FileSize', 'Root'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty уже существует
             
             $v.OS = $ver  # 7 / 10 / PE
             
@@ -522,6 +523,8 @@ function Test-Wim
                 $v.date2mod = $file.LastWriteTimeUtc  # LastWriteTime это метка изменения содержимого файла и она сохраняется при копировании, т.е. если в процессе deploy`я wim-файлов по конечным сетевым папкам и дискам этот атрибут сохранится - его можно использовать для выбора самого свежего файла для развёртывания
                 
                 $v.Priority = if ($local) {0} else {1}  # приоритет при выборе источника будет выше у локальных файлов
+                
+                $v.Root = $OSdir
                 
                 if ($md5)  # проверка md5 если есть контролька
                 {
@@ -580,11 +583,40 @@ function Copy-WithCheck
     param (
         $from,
         $to,
-        
+        $retry = 2
     )
-    begin {}
-    process {}
-    end {}
+    
+    begin
+    {
+        $res = @()
+        
+        if( !(Test-Path -Path $to) ) { New-Item -ItemType Directory -Path $to }
+        
+        $filesFrom = Get-ChildItem -Recurse -Path $from | Get-FileHash -Algorithm MD5
+        # 
+    }
+    
+    process
+    {
+        foreach ($file in $filesFrom)
+        {
+            $name = $file[0].Path.split('\')[-1]
+            Copy-Item -Path $file.Path -Destination "$to\$name"
+            $res += (Get-FileHash -Algorithm MD5 -Path "$to\$name").Hash -eq $file.Hash
+        }
+        
+        
+        
+        
+        
+        
+        
+        
+        $res | Out-Default
+        #
+    }
+    
+    end { $res.count -gt 0 -and $res -notcontains $false }
 }
 
 
@@ -631,7 +663,7 @@ function Use-Wenix
                     $ver = if ($_ -eq 'D7') { '7' } else { '10' }  # на выбор Windows 7 / 10
                     
                     
-                    $CheckDisk = Test-Disk -skip  # -skip для дебага
+                    # $CheckDisk = Test-Disk -skip  # -skip для дебага
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
                     
@@ -695,8 +727,7 @@ function Use-Wenix
                         
                         foreach ($PEwim in $PEsourses)
                         {
-                            if (Copy-WithCheck -from $PEwim.FilePath -to 
-                            ) { break }
+                            if ( (Copy-WithCheck -from $PEwim.Root -to 'X:\.IT\PE') ) { break }
                         }
                         
                         
