@@ -627,7 +627,7 @@ function Use-Wenix
                         if ( (Copy-WithCheck -from 'X:\.IT\PE' -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\PE") )
                         # copy PE back to the 'PE' volume # apply copied boot.wim to 'PE' volume
                         {
-                            $log['Install-Wim PE'] = Install-Wim -ver 'PE'
+                            $log['Install-Wim PE'] = (Install-Wim -ver 'PE')
                             
                             Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim -PE', $log['Install-Wim PE']) #_#
                         }
@@ -652,9 +652,9 @@ function Use-Wenix
                         
                         if ($log['copying OS install.wim to PE volume'])
                         {
-                            $log['Install-Wim OS'] = Install-Wim -ver $ver
+                            $log['Install-Wim OS'] = (Install-Wim -ver $ver)
                             
-                            Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                            Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim OS', $log['Install-Wim OS']) #_#
                         }
                         
                         #endregion
