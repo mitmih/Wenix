@@ -203,7 +203,7 @@ REM compress and calculate MD5
         
     ) else ( pause )
 
-
+echo before ISO making... && pause >nul
 
 REM make iso-file
     if errorlevel 0 (
