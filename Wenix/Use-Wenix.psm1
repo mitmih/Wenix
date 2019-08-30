@@ -5,9 +5,6 @@ $volumes = @(
 )
 
 
-# $RetryCount = 2  # кол-во попыток скопировать install.wim на PE раздел с проверкой md5 после копирования
-
-
 function Show-Menu
 {
 <#
@@ -125,70 +122,6 @@ function Test-Disk
 }
 
 
-function _Test-Wim
-{
-    # [CmdletBinding()]
-    
-    # param ( $ver, [switch] $md5 = $false)
-    
-    # begin
-    # {
-    #     $CheckList = [ordered]@{}
-        
-    #     $PE = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match 'PE'}).DriveLetter):\.IT\PE"
-        
-    #     $OS = "$((Get-Volume | Where-Object {$_.FileSystemLabel -match 'PE'}).DriveLetter):\.IT\$ver"
-    # }
-    
-    # process
-    # {
-    #     $CheckList["exist PE    boot.wim"] = Test-Path -Path "$PE\boot.wim"
-        
-    #     $CheckList["exist OS install.wim"] = Test-Path -Path "$OS\install.wim"
-        
-    #     if ($md5)
-    #     {
-    #         $PEmd5calc = Get-FileHash -Path "$PE\boot.wim" -Algorithm MD5
-            
-    #         $PEmd5file = Get-Content -Path "$PE\boot.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
-            
-    #         $CheckList["MD5   PE    boot.wim"] = $PEmd5file -imatch $PEmd5calc.Hash
-            
-            
-    #         $OSmd5calc = Get-FileHash -Path "$OS\install.wim" -Algorithm MD5
-            
-    #         $OSmd5file = Get-Content -Path "$OS\install.wim.md5" | Select-String -Pattern '^[a-zA-Z0-9]' 
-            
-    #         $CheckList["MD5   OS install.wim"] = $OSmd5file -imatch $OSmd5calc.Hash
-    #     }
-    # }
-    
-    # end
-    # {
-    #     if ($CheckList.Values -contains $true)
-    #     {
-    #         Write-Host '    files checks OK                 ' -BackgroundColor DarkGreen
-    #         $CheckList.GetEnumerator() | Where-Object {$_.value -eq $true} | Out-Default
-    #     }
-        
-    #     if ($CheckList.Values -contains $false)
-    #     {
-    #         Write-Host '    files checks FAILED             ' -BackgroundColor DarkRed
-    #         $CheckList.GetEnumerator() | Where-Object {$_.value -eq $false} | Out-Default
-    #     }
-        
-    #     if ($CheckList.count -gt 0)
-    #     {
-    #         return ($CheckList.Values -notcontains $false)
-    #     }
-    #     else
-    #     {
-    #         return $false
-    #     }
-    # }
-}
-
-
 function Edit-PartitionTable
 {
     param (
@@ -234,7 +167,8 @@ function Edit-PartitionTable
 
 function Install-Wim
 {
-    param ($vol = '', $ver = '', [switch]$PE = $false)
+    param ($ver = ''<# , [switch]$PE = $false #>)
+    
     
     begin
     {
@@ -249,7 +183,7 @@ function Install-Wim
     {
         try
         {
-            if ($PE)
+            if ( $ver -eq 'PE' -and (Test-Path -Path "$PEletter\.IT\PE\boot.wim") )
             {
                 Expand-WindowsImage -ImagePath "$PEletter\.IT\PE\boot.wim" -ApplyPath "$PEletter\" -Index 1 -ErrorAction Stop
                 
@@ -274,118 +208,19 @@ function Install-Wim
                 bcdedit /displayorder $guid /addfirst  # + PE RAM-disk boot menu entry
                 bcdedit /delete '{default}' /cleanup
             }
-            
-            else
+            elseif ( Test-Path -Path "$PEletter\.IT\$ver\install.wim" )
             {
-                # Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
+                Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
-                # Expand-WindowsImage -ImagePath $wimsOS.FullName -ApplyPath "O:\" -Index 1 -ErrorAction Stop
+                Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver" -ApplyPath "$OSletter\" -Index 1 -ErrorAction Stop
                 
-                # bcdedit /delete '{default}' /cleanup  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
+                bcdedit /delete '{default}' /cleanup  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
                 
-                # Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "O:\Windows"
+                Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "$OSletter\Windows"
                 
-                # # bcdedit /timeout 5
+                # bcdedit /timeout 5
             }
             
-            $res = $true
-        }
-        
-        catch
-        {
-            $res = $false
-            
-            $Error | Out-Default
-        }
-    }
-    
-    end { return $res }
-}
-
-
-function _Complete-PEPartition
-{
-    # param ()
-    
-    # begin
-    # {
-    #     $res = $false
-        
-    #     $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match 'wim'}
-        
-    #     $ITfolder = $wim_vol.DriveLetter + ':\.IT'
-    # }
-    
-    # process
-    # {
-    #     try
-    #     {
-    #         Copy-Item -Path ($ITfolder + "\10") -Destination "P:\.IT\10" -Recurse -ErrorAction Stop
-            
-    #         Copy-Item -Path ($ITfolder + '\7' ) -Destination "P:\.IT\7"  -Recurse -ErrorAction Stop
-            
-    #         Remove-Partition -DiskNumber 0 -PartitionNumber 4 -Confirm:$false -ErrorAction Stop
-            
-    #         Remove-Partition -DiskNumber 0 -PartitionNumber 0 -Confirm:$false -ErrorAction Stop
-            
-    #         Resize-Partition -DiskNumber 0 -PartitionNumber 3 -Size (Get-PartitionSupportedSize -DiskNumber 0 -PartitionNumber 3).SizeMax -Confirm:$false
-            
-    #         $res = $true
-    #     }
-        
-    #     catch { $res = $false }
-    # }
-    
-    # end {return $res}
-}
-
-
-function _Mount-Standart ###################
-{
-    # param ($pos = 0)
-    
-    # begin { $res = $false }
-    
-    # process
-    # {
-    #     try
-    #     {
-    #         foreach ($vol in $volumes)
-    #         {
-    #             if ( (Get-Volume -FileSystemLabel $vol.label).DriveLetter -ne $vol.letter -and )
-    #             {
-    #                 Get-Volume -FileSystemLabel $vol.label | Get-Partition | Set-Partition -NewDriveLetter $vol.letter -ErrorAction Stop
-    #             }
-                
-    #         }
-            
-    #         $res = $true
-    #     }
-        
-    #     catch
-    #     {
-    #         $res = $false
-            
-    #         $Error | Out-Default
-    #     }
-    # }
-    
-    # end { return $res }
-}
-
-
-function _Get-MountedStandart ###################
-{
-    param ($pos = 0)
-    
-    begin { $res = $false }
-    
-    process
-    {
-        try
-        {
-            foreach ($vol in $volumes) { $vol.letter = Get-Volume -FileSystemLabel $vol.label -ErrorAction Stop }
-            $volumes | Out-Default
             $res = $true
         }
         
@@ -649,20 +484,10 @@ function Copy-WithCheck
         
         $res = $res -notcontains $false
 
-        Write-Host ( '    copy from {0,12} to {1,-12} was {3,-10} {2,22}' -f $from, $to, '', $(if ($res) {'OK'} else {'FAIL'}) ) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
+        Write-Host ( '    copy from {0,24} to {1,-12} was {3,-10} {2,10}' -f $from, $to, '', $(if ($res) {'OK'} else {'FAIL'}) ) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
     }
     
-    # end { return ($res.count -gt 0 -and $res -notcontains $false) }
     end { return $res }
-}
-
-
-function f2
-{
-    param ()
-    begin {}
-    process {}
-    end {}
 }
 
 
@@ -693,7 +518,7 @@ function Use-Wenix
             {
                 { $_ -in @( 'D0', 'D7' ) }  # нажали 0 или 7
                 {
-                    "  <--     selected`n" | Out-Default
+                    Write-Host ("  <--     selected {0,61}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black #| Out-Default
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
                     
@@ -786,9 +611,11 @@ function Use-Wenix
                         
                         foreach ($PEwim in $PEsourses)
                         {
-                            if ( (Copy-WithCheck -from $PEwim.Root -to 'X:\.IT\PE') )
+                            if ((Copy-WithCheck -from $PEwim.Root -to 'X:\.IT\PE') -and
+                                (Copy-WithCheck -from $NetConfig  -to 'X:\.IT\PE') )
                             {
                                 $log['backup ramdisk in memory'] = $true
+                                
                                 
                                 break
                             }
@@ -800,7 +627,7 @@ function Use-Wenix
                         #endregion
                         
                         
-                        #region restore RAM-disk PE from memory
+                        #region restore RAM-disk PE from memory, renew boot menu
                         
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
                         
@@ -820,7 +647,7 @@ function Use-Wenix
                         if ( (Copy-WithCheck -from 'X:\.IT\PE' -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\PE") )
                         # copy PE back to the 'PE' volume # apply copied boot.wim to 'PE' volume
                         {
-                            $log['Install-Wim PE'] = Install-Wim -PE
+                            $log['Install-Wim PE'] = Install-Wim -ver 'PE'
                             
                             Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim -PE', $log['Install-Wim PE']) #_#
                         }
@@ -831,15 +658,24 @@ function Use-Wenix
                         
                         #region apply install.wim to 'OS' volume
                         
-                        # $log['Install-Wim OS'] = Install-Wim -vol 'PE' -ver $ver
+                        foreach ($OSwim in $OSsourses)
+                        {
+                            if ( (Copy-WithCheck -from $OSwim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver") )
+                            {
+                                $log['copying OS install.wim to PE volume'] = $true
+                                
+                                break
+                            }
+                            else { $log['copying OS install.wim to PE volume'] = $false }
+                        }
                         
-                        # Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
                         
-                        
-                        
-                        
-                        
-                        
+                        if ($log['copying OS install.wim to PE volume'])
+                        {
+                            $log['Install-Wim OS'] = Install-Wim -ver $ver
+                            
+                            Write-Host "Install-Wim OS`t`t", $log['Install-Wim OS'], $WatchDogTimer.Elapsed.TotalMinutes -ForegroundColor Yellow
+                        }
                         
                         #endregion
                     }
@@ -857,17 +693,6 @@ function Use-Wenix
                 }
                 
                 'Backspace' { return }
-                
-                <# 'T'
-                {
-                    $cmd = Read-Host -Prompt "`ntype command"
-                    
-                    if ($cmd -eq 'far') { Start-Process -FilePath "$env:SystemDrive\Far\Far.exe" }
-                    
-                    if ($cmd -eq 'cmd') { Start-Process -FilePath "$env:windir\System32\cmd.exe" -ArgumentList '/k' }
-                    
-                    break
-                } #>
                 
                 Default { break }
             }
