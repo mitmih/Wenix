@@ -13,14 +13,10 @@ function Show-Menu
 
 .DESCRIPTION
     user can interact with Wenix by pressing keys
+        <--     break menu script
         Esc     reboot
-        0      re-install Windows 10
-        7      re-install Windows 7
-        m       show menu
-        b       break menu script
-        t       type command
-            far
-            cmd
+        0       re-install Windows 10
+        7       re-install Windows 7
 
 .INPUTS
     # 
@@ -44,21 +40,14 @@ function Show-Menu
     {
         $MenuText = @(
             ""
-            
             "Wenix version $((Get-Module -Name Wenix).Version.ToString())"
-            
+            ""
             "Please press specified key to select action:"
-            
+            ""
             "   <--     escape from menu"
-            
             "   Esc     reboot"
-            
             "   0       re-install Windows 10"
-            
             "   7       re-install Windows 7"
-            
-            # "   t       type command"  # пока так и не использовал
-            
             ""
         )
     }
@@ -76,16 +65,7 @@ function Test-Disk
         [switch]$skip = $false
         )
     
-    begin
-    {
-        $CheckList = [ordered]@{}
-        
-        # $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -imatch 'PE'}  # том загрузки PE и восстановления
-        
-        # if ($null -ne $wim_vol) { $wim_part = Get-Partition | Where-Object {$_.AccessPaths -contains $wim_vol.Path} }
-        
-        # $wim_part = Get-Partition | Where-Object {$_.IsActive -eq $true}
-    }
+    begin { $CheckList = [ordered]@{} }
     
     process
     {
@@ -124,9 +104,8 @@ function Test-Disk
 
 function Edit-PartitionTable
 {
-    param (
-        $pos = 0
-    )
+    param ( $pos = 0 )
+    
     
     begin { $res = $false }
     
@@ -157,7 +136,7 @@ function Edit-PartitionTable
         {
             $res = $false
             
-            $Error | Out-Default
+            <# $Error | Out-Default #>
         }
     }
     
@@ -185,7 +164,7 @@ function Install-Wim
         {
             if ( $ver -eq 'PE' -and (Test-Path -Path "$PEletter\.IT\PE\boot.wim") )
             {
-                Expand-WindowsImage -ImagePath "$PEletter\.IT\PE\boot.wim" -ApplyPath "$PEletter\" -Index 1 -ErrorAction Stop
+                Expand-WindowsImage -ImagePath "$PEletter\.IT\PE\boot.wim" -ApplyPath "$PEletter\" -Index 1 -Verify -ErrorAction Stop
                 
                 Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "$PEletter\Windows", "/s $PEletter", "/f ALL"
                 
@@ -212,14 +191,15 @@ function Install-Wim
             {
                 Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
-                Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 -ErrorAction Stop
+                # Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 -Verify -ErrorAction Stop
+                
+                Start-Process -Wait -FilePath 'dism.exe' -ArgumentList '/Apply-Image', "/ImageFile:$PEletter\.IT\$ver\install.wim", "/ApplyDir:$OSletter\", '/Index:1'
                 
                 bcdedit /delete '{default}' /cleanup  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
                 
                 Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "$OSletter\Windows"
-                
-                # bcdedit /timeout 5
             }
+            else {}
             
             $res = $true
         }
@@ -228,7 +208,7 @@ function Install-Wim
         {
             $res = $false
             
-            $Error | Out-Default
+            <# $Error | Out-Default #>
         }
     }
     
@@ -306,7 +286,7 @@ function Read-NetConfig
             }
         }
         
-        catch { $Error | Out-Default }
+        catch { <# $Error | Out-Default #> }
     }
     
     end { return $valid }
@@ -451,7 +431,6 @@ function Copy-WithCheck
     {
         $res = @()
         
-        # $filesFrom = Get-ChildItem -Recurse -Path $from | Get-FileHash -Algorithm MD5
         $filesFrom = Get-ChildItem -Force -Recurse -Path $from | Get-FileHash -Algorithm MD5
     }
     
@@ -480,7 +459,7 @@ function Copy-WithCheck
         {
             $res += $false
             
-            $Error | Out-Default
+            <# $Error | Out-Default #>
         }
         
         $res = $res -notcontains $false
@@ -612,11 +591,11 @@ function Use-Wenix
                         
                         foreach ($PEwim in $PEsourses)
                         {
-                            if ((Copy-WithCheck -from $PEwim.Root -to 'X:\.IT\PE') -and
-                                (Copy-WithCheck -from $NetConfig  -to 'X:\.IT\PE') )
+                            if ( (Copy-WithCheck -from $PEwim.Root -to 'X:\.IT\PE') )
                             {
                                 $log['backup ramdisk in memory'] = $true
                                 
+                                Copy-Item -Path $NetConfig -Destination 'X:\.IT\PE'
                                 
                                 break
                             }
