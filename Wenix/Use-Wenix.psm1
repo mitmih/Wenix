@@ -212,7 +212,7 @@ function Install-Wim
             {
                 Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
-                Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver" -ApplyPath "$OSletter\" -Index 1 -ErrorAction Stop
+                Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 -ErrorAction Stop
                 
                 bcdedit /delete '{default}' /cleanup  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
                 
@@ -451,7 +451,8 @@ function Copy-WithCheck
     {
         $res = @()
         
-        $filesFrom = Get-ChildItem -Recurse -Path $from | Get-FileHash -Algorithm MD5
+        # $filesFrom = Get-ChildItem -Recurse -Path $from | Get-FileHash -Algorithm MD5
+        $filesFrom = Get-ChildItem -Force -Recurse -Path $from | Get-FileHash -Algorithm MD5
     }
     
     process
@@ -484,7 +485,7 @@ function Copy-WithCheck
         
         $res = $res -notcontains $false
 
-        Write-Host ( '    copy from {0,24} to {1,-12} was {3,-10} {2,10}' -f $from, $to, '', $(if ($res) {'OK'} else {'FAIL'}) ) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
+        Write-Host ( '{0,-5}copy to {1,-12}from {2,24} {3,24}' -f $(if ($res) {'OK'} else {'FAIL'}), $to, $from, '' ) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
     }
     
     end { return $res }
@@ -518,7 +519,7 @@ function Use-Wenix
             {
                 { $_ -in @( 'D0', 'D7' ) }  # нажали 0 или 7
                 {
-                    Write-Host ("  <--     selected {0,61}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black #| Out-Default
+                    Write-Host ("  <<<     selected {0,61}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black #| Out-Default
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
                     
@@ -556,7 +557,7 @@ function Use-Wenix
                     
                     #region локальные источники
                     
-                    if (!$Disk0isOk) { $LettersExclude = (Get-Partition -DiskNumber 0 | ? {'' -ne $_.DriveLetter}).DriveLetter }  # источники с этого диска бесполезны, т.к. ему нужна переразбивка
+                    if (!$Disk0isOk) { $LettersExclude = (Get-Partition -DiskNumber 0 | Where-Object {'' -ne $_.DriveLetter}).DriveLetter }  # источники с этого диска бесполезны, т.к. ему нужна переразбивка
                     
                     $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot' #-exclude $LettersExclude
                     
