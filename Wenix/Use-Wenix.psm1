@@ -1,7 +1,7 @@
 $volumes = @(
     New-Object psobject -Property @{ letter = [char]'B' ; label =   'PE' ; size = 25GB ; active = $true}  # Active, bootmgr + winPE RAM-disk
     New-Object psobject -Property @{ letter = [char]'O' ; label =   'OS' ; size = 75GB ; active = $false}  # for windows
-    New-Object psobject -Property @{ letter = [char]'D' ; label = 'Data' ; size = 0 ; active = $false}  # for data, will be resized to max
+    New-Object psobject -Property @{ letter = [char]'Q' ; label = 'Data' ; size = 0 ; active = $false}  # for data, will be resized to max
 )
 
 
@@ -232,23 +232,9 @@ function Edit-PartitionTable
 
 function Install-Wim
 {
-    param ($vol = '', $ver = '', [switch]$PE = $false)
+    param ($vol = '', $ver = '', [switch]$PE = $false, $wim = $null)
     
-    begin
-    {
-        $res = $false
-        
-        # $wim_vol = Get-Volume | Where-Object {$_.FileSystemLabel -match $vol}
-        
-        # $ITfolder = $wim_vol.DriveLetter + ':\.IT'
-        
-        # if (Test-Path $ITfolder)
-        # {
-        #     $wimsOS = Get-ChildItem -Filter 'install.wim' -Path "$ITfolder\$ver"
-            
-        #     $wimsPE = Get-ChildItem -Filter 'boot.wim'    -Path "$ITfolder\PE"
-        # }
-    }
+    begin { $res = $false }
     
     process
     {
@@ -256,12 +242,9 @@ function Install-Wim
         {
             if ($PE)
             {
-                Expand-WindowsImage -ImagePath $wimsPE.FullName -ApplyPath "P:\" -Index 1 -ErrorAction Stop
+                Expand-WindowsImage -ImagePath 'B:\.IT\PE\boot.wim' -ApplyPath "B:\" -Index 1 -ErrorAction Stop
                 
                 Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "B:\Windows", "/s B:", "/f ALL"
-                
-                
-                # Copy-Item -Path ($ITfolder + '\PE') -Destination "P:\.IT\PE" -Recurse
                 
                 
                 # make RAM Disk object
@@ -279,7 +262,8 @@ function Install-Wim
                 bcdedit /set $guid winpe yes
                 bcdedit /set $guid detecthal yes
                 
-                bcdedit /displayorder $guid /addfirst  # add the new boot entry to the boot menu
+                bcdedit /displayorder $guid /addfirst  # + PE RAM-disk boot menu entry
+                bcdedit /delete '{default}' /cleanup
             }
             
             else
@@ -459,6 +443,8 @@ function Test-Wim
         
         $name, # boot / install
         
+        $exclude = @(),  # список исключаемых из локальной проверки букв дисков
+        
         [switch] $md5 = $false  # включить проверку md5
     )
     
@@ -477,9 +463,11 @@ function Test-Wim
         {
             $places = @()
             
-            foreach ($lv in (Get-Volume | Where-Object {$null -ne $_.DriveLetter}))
+            foreach ($lv in (Get-Volume | Where-Object {$null -ne $_.DriveLetter -and $exclude -inotcontains $_.DriveLetter}))
             # локальная коллекция
             {
+                # if ($exclude -icontains $lv.DriveLetter) { continue }
+                
                 $places += (New-Object psobject -Property @{
                         "gw"        = $null
                         'netpath'   = ($lv.DriveLetter + ':')
@@ -675,31 +663,19 @@ function Use-Wenix
                     
                     $ver = if ( $_ -eq 'D7' ) { '7' } else { '10' }  # на выбор Windows 7 / 10
                     
-                    
-                    #region локальные источники
-                    
-                    $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot'
-                    
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
-                    
-                    
-                    $OSsourses += Test-Wim -md5 -ver $ver -name 'install'
-                    
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local OS') #_#
-                    
-                    #endregion
+                    $Disk0IsOk = Test-Disk
                     
                     
                     #region  сетевые источники
                     
-                    $file = Find-NetConfig  # сетевой конфиг, должен лежать на томе ':\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C: D: etc
+                    $NetConfig = Find-NetConfig  # сетевой конфиг, должен лежать на томе ':\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C: D: etc
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Find-NetConfig BootStrap.csv') #_#
                     
                     
-                    if ($null -ne $file)  # поиск wim-файлов в источниках из сетевого конфига ':\.IT\PE\BootStrap.csv'
+                    if ($null -ne $NetConfig)  # поиск wim-файлов в источниках из сетевого конфига ':\.IT\PE\BootStrap.csv'
                     {
-                        $shares += Read-NetConfig -file $file
+                        $shares += Read-NetConfig -file $NetConfig
                         
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig') #_#
                         
@@ -717,7 +693,24 @@ function Use-Wenix
                     #endregion
                     
                     
-                    if ( !($OSsourses.count -gt 0 -or $PEsourses.count -gt 0) )  # BUG HERE
+                    #region локальные источники
+                    
+                    if (!$Disk0IsOk) { $LettersExclude = (Get-Partition -DiskNumber 0 | ? {'' -ne $_.DriveLetter}).DriveLetter }  # источники с этого диска бесполезны, т.к. ему нужна переразбивка
+                    
+                    $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot' #-exclude $LettersExclude
+                    
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
+                    
+                    
+                    $OSsourses += Test-Wim -md5 -ver $ver -name 'install' -exclude $LettersExclude
+                    
+                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local OS') #_#
+                    
+                    #endregion
+                    
+                    
+
+                    if ( !($OSsourses.count -gt 0 -and $PEsourses.count -gt 0) )  # BUG HERE
                     # отбой: один или оба источника пустые, установка не будет завершена
                     {
                         $log['empty source PE'] = $OSsourses.count -eq 0
@@ -743,6 +736,7 @@ function Use-Wenix
                                 # 'FileExist'
                                 # 'md5ok'
                                 # 'FilePath'
+
                                 'OS'
                                 'FileName'
                                 'FileSize'
@@ -751,7 +745,7 @@ function Use-Wenix
                                 'Priority'
                         )}
                         
-                        $PEsourses, "`n", $OSsourses | Select-Object @FTparams | Format-Table *
+                        ($PEsourses + "`n" + $OSsourses) | Select-Object @FTparams | Format-Table *
                         
                         
                         foreach ($PEwim in $PEsourses)
@@ -774,25 +768,23 @@ function Use-Wenix
                         
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
                         
-                        if ( Test-Disk )
+                        if ( $Disk0IsOk )
                         # format PE, assign letter B:
                         # re-copy PE, X:\Windows\System32\Boot to B:\Windows\System32\Boot
                         {
-                            $log['Edit-PartitionTable'] = Edit-PartitionTable
+                            # $log['Edit-PartitionTable'] = Edit-PartitionTable
                         }
                         else
                         # clear disk
                         # make partition
+                        # re-copy PE, apply copied boot.wim to b:\
                         {
                             $log['Edit-PartitionTable'] = Edit-PartitionTable
                             
                             Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Edit-PartitionTable') #_#
                         }
                         
-                        if (
-                            (Copy-WithCheck -from 'X:\.IT\PE' -to 'B:\.IT\PE')<#  -and 
-                            (Copy-WithCheck -from 'X:\Windows\System32' -to 'B:\Windows\System32') #>
-                            )
+                        if ( (Copy-WithCheck -from 'X:\.IT\PE' -to 'B:\.IT\PE') )
                         {
                             $log['Install-Wim PE'] = Install-Wim -PE
                             
