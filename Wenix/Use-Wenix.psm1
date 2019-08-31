@@ -595,7 +595,7 @@ function Use-Wenix
                             {
                                 $log['backup ramdisk in memory'] = $true
                                 
-                                Copy-Item -Path $NetConfig -Destination 'X:\.IT\PE'
+                                Copy-Item -Force -Path $NetConfig -Destination 'X:\.IT\PE'
                                 
                                 break
                             }
