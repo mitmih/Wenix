@@ -570,9 +570,9 @@ function Use-Wenix
                     else
                     # можно начинать установку
                     {
-                        $PEsourses = $PEsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, 'Priority'
+                        $PEsourses = $PEsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, @{Expression = {$_.Priority}; Descending = $false}
                         
-                        $OSsourses = $OSsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, 'Priority'
+                        $OSsourses = $OSsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, @{Expression = {$_.Priority}; Descending = $false}
                         
                         
                         #region backup RAM-disk PE to memory
