@@ -276,7 +276,7 @@ function Read-NetConfig
         
         foreach ($n in $NetDrv)
         {
-            if (Get-PSDrive | ? {$_.Name -eq $n})
+            if (Get-PSDrive | Where-Object {$_.Name -eq $n})
             {
                 # Remove-PSDrive -Name $n -Force -Scope Global  # doesn`t work!!!
                 Start-Process -FilePath 'net.exe' -ArgumentList 'use', ($n + ':'), '/delete'
@@ -294,21 +294,26 @@ function Read-NetConfig
             foreach ( $s in ($shares | Select-Object -First $NetDrv.Count) )
             {
                 # if (Test-Connection -Quiet -Count 3 -ComputerName $s.netpath.Split('\')[2])
-                if (Test-NetConnection -InformationLevel Quiet -Port 445 -ComputerName $s.netpath.Split('\')[2])
-                # $c = New-Object Net.Sockets.TcpClient
-                # $c.ReceiveTimeout = 10
-                # $c.Connect( ($s.netpath.Split('\')[2]), 445)
-                # if ($c.Connected)
+                # if (Test-NetConnection -InformationLevel Quiet -Port 445 -ComputerName $s.netpath.Split('\')[2])
+                
+                $tcp = New-Object Net.Sockets.TcpClient
+                
+                $connect = $tcp.BeginConnect( ($s.netpath.Split('\')[2]), 445, $null, $null)
+                
+                if ($connect.AsyncWaitHandle.WaitOne(999,$false))  # 999 миллисекунд
                 {
+                    $tcp.EndConnect($connect) | Out-Null
+                    
                     $v = $s | Select-Object -Property *, 'PSDrive'
                     
                     $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $v.user, (ConvertTo-SecureString $v.password -AsPlainText -Force)
                     
                     $drive = New-PSDrive -Persist -NAME $NetDrv[$l] -PSProvider FileSystem -Root $v.netpath -Credential $cred -ErrorAction Stop
                     
+                    $l++
+                    
                     if ([System.IO.Directory]::Exists($s.netpath))
                     {
-                        $l++
                         $v.PSDrive = $drive.Name
                         $valid += $v
                     }
@@ -518,6 +523,8 @@ function Use-Wenix
     
     begin
     {
+        $Error.Clear()
+        
         $WatchDogTimer = [system.diagnostics.stopwatch]::startNew()
         
         $log = [ordered]@{}
@@ -552,7 +559,7 @@ function Use-Wenix
                     
                     #region  сетевые источники
                     
-                    $NetConfig = Find-NetConfig  # сетевой конфиг, должен лежать на томе ':\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C: D: etc
+                    $NetConfig = Find-NetConfig  # объект файла сетевого конфига, должен лежать на томе в папке '<буква>:\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C D E etc
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Find-NetConfig BootStrap.csv') #_#
                     
