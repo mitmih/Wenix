@@ -5,16 +5,6 @@ $volumes = @(
 )
 
 
-$NetDrv = @(  # буквы на подключение сетевых шар
-    'R'
-    'S'
-    'T'
-    'U'
-    'V'
-    'W'
-)
-
-
 function Show-Menu
 {
 <#
@@ -255,7 +245,7 @@ function Find-NetConfig  # можно улучшить и возвращать �
 function Read-NetConfig
 # читает конфиг сетевых источников, фильтрует по шлюзу, возвращает те, к которым удалось подключиться
 {
-    param ($file)
+    param ($file, $limit = 7)
     
     
     begin
@@ -272,15 +262,6 @@ function Read-NetConfig
         {
             if (($item.Context.PostContext[1].Split(':')[1].Trim()).Length -gt 0) { $GWs += $item.Context.PostContext[1].Split(':')[1].Trim() }
         }
-        
-        # foreach ($n in $NetDrv)
-        # {
-        #     if (Get-PSDrive | Where-Object {$_.Name -eq $n})
-        #     {
-        #         # Remove-PSDrive -Name $n -Force -Scope Global  # doesn`t work!!!
-        #         Start-Process -FilePath 'net.exe' -ArgumentList 'use', ($n + ':'), '/delete'
-        #     }
-        # }
     }
     
     process
@@ -289,8 +270,7 @@ function Read-NetConfig
         {
             foreach ($gw in $GWs) { $shares += Import-Csv -Path $file -ErrorAction Stop | Where-Object { $_.gw -match $gw} }
             
-            $l = 0
-            foreach ( $s in ($shares | Select-Object -First $NetDrv.Count) )
+            foreach ( $s in ($shares | Select-Object -First $limit) )
             {
                 $tcp = New-Object Net.Sockets.TcpClient
                 
@@ -304,9 +284,7 @@ function Read-NetConfig
                     
                     $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $v.user, (ConvertTo-SecureString $v.password -AsPlainText -Force)
                     
-                    $drive = New-PSDrive -NAME $NetDrv[$l] -PSProvider FileSystem -Root $v.netpath -Credential $cred -ErrorAction Stop
-                    
-                    $l++
+                    $drive = New-PSDrive -PSProvider FileSystem -NAME (Get-Random) -Root $v.netpath -Credential $cred -ErrorAction Stop
                     
                     if ([System.IO.Directory]::Exists($s.netpath))
                     {
@@ -314,7 +292,6 @@ function Read-NetConfig
                         
                         $valid += $v
                     }
-                    # else { $drive | Remove-PSDrive -Force }
                 }
             }
         }
@@ -379,9 +356,9 @@ function Test-Wim
             
             if (!$local)
             {
-                # $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
+                $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
                 
-                $drive = New-PSDrive -NAME ($ver + '_' + $name + '_wim') -PSProvider FileSystem -Root $s.netpath <# -Credential $cred #> -ErrorAction Stop
+                $null = New-PSDrive -PSProvider FileSystem -NAME (Get-Random) -Root $s.netpath -Credential $cred -ErrorAction Stop
             }
             
             
@@ -457,60 +434,49 @@ function Copy-WithCheck
 {
     param ( $from, $to, $retry = 2, $net = $null )
     
-    begin
+    
+    if ($from.Trim() -eq $to.Trim()) { return $true }
+    
+    $res = @()
+    
+    if ($null -ne $net)
     {
-        $res = @()
+        # $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
         
-        if ($null -ne $net)
-        {
-            # $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
-            
-            $drive = New-PSDrive -NAME 'T' -PSProvider FileSystem -Root $net.netpath <# -Credential $cred #> -ErrorAction Stop
-        }
-        else { $drive = $null }
-        
-        $filesFrom = (Get-ChildItem -Path $from -Recurse -Force | Get-FileHash -Algorithm MD5)
+        $null = New-PSDrive -PSProvider FileSystem -NAME (Get-Random) -Root $net.netpath <# -Credential $cred #> -ErrorAction Stop
     }
     
-    process
+    try
     {
-        try
+        $filesFrom = (Get-ChildItem -Path $from -Recurse -Force -ErrorAction Stop | Get-FileHash -Algorithm MD5 -ErrorAction Stop)
+        
+        if( !(Test-Path -Path $to) ) { New-Item -ItemType Directory -Path $to -ErrorAction Stop}
+        
+        for ($i = 0; $i -lt $retry; $i++)  # несколько попыток копирования
         {
-            if( !(Test-Path -Path $to) ) { New-Item -ItemType Directory -Path $to -ErrorAction Stop}
-            
-            for ($i = 0; $i -lt $retry; $i++)  # множественные попытки копирования
+            foreach ($file in $filesFrom)
             {
-                foreach ($file in $filesFrom)
-                {
-                    $name = $file[0].Path.Split('\')[-1]
-                    
-                    Copy-Item -Force -Path $file.Path -Destination "$to\$name" -ErrorAction Stop
-                    
-                    $res += (Get-FileHash -Algorithm MD5 -Path "$to\$name").Hash -eq $file.Hash
-                }
+                $name = $file[0].Path.Split('\')[-1]
                 
-                if ($res -notcontains $false) { break }  # копирование было успешным
+                Copy-Item -Force -Path $file.Path -Destination "$to\$name" -ErrorAction Stop
+                
+                $res += (Get-FileHash -Algorithm MD5 -Path "$to\$name").Hash -eq $file.Hash
             }
-        }
-        
-        catch
-        {
-            $res += $false
             
-            <# $Error | Out-Default #>
+            if ($res -notcontains $false) { break }  # копирование было успешным
         }
-        
+    }
+    
+    catch { $res += $false }
+    
+    finally
+    {
         $res = $res -notcontains $false
-
+    
         Write-Host ( '{0,-5}copy to {1,-12}from {2,24} {3,24}' -f $(if ($res) {'OK'} else {'FAIL'}), $to, $from, '' ) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
     }
     
-    end
-    {
-        # if ($drive) { $drive | Remove-PSDrive -Force }
-        
-        return $res
-    }
+    return $res
 }
 
 
@@ -686,11 +652,19 @@ function Use-Wenix
                         
                         foreach ( $wim in ($Sourses | Where-Object {$_.OS -eq $ver}) )
                         {
-                            $log['copying OS wim to PE volume'] = (Copy-WithCheck -from $wim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver"<#  -net $wim #>)
+                            # $log['copying OS wim to PE volume'] = (Copy-WithCheck -from $wim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver"<#  -net $wim #>)
                             
-                            if ( $log['copying OS wim to PE volume'] ) { break }
+                            # if ( $log['copying OS wim to PE volume'] ) { break }
                             
                             # Copy-Item -Force -Recurse $wim.Root -Destination "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT"
+                            
+                            $to = "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver"
+                            
+                            $copy = if ($null -eq $wim.user) { Copy-WithCheck -from $wim.Root -to $to } else { Copy-WithCheck -from $wim.Root -to $to -net $wim }
+                            
+                            $log['backup ramdisk in memory'] = $copy
+                            
+                            if ( $copy ) { break }
                         }
                         
                         $log['Install-Wim OS'] = (Install-Wim -ver $ver <# -wim $wim.FilePath #>)
@@ -698,16 +672,15 @@ function Use-Wenix
                         Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim OS', $log['Install-Wim OS']) #_#
                         
                         #endregion
-                    }
-                    else
-                    # установка невозможна: один или оба источника wim-файлов пустые
-                    {
-                        return
-                    }
+                    }  # else { return }  # установка невозможна: один или оба источника wim-файлов пустые
                     
                     
-                    $log['debug'] = $false
-                    if ($log.Values -notcontains $false) { Restart-Computer -Force } else { return }  # если все ок - перезагрузка, иначе - выход для отладки и ручных манипуляций
+                    Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage reboot', ($log.Values -notcontains $false)) -BackgroundColor Magenta -ForegroundColor Black #_#
+                    
+                    Start-Sleep -Seconds 5
+                    
+                    # $log['debug'] = $false
+                    if ($log.Values -notcontains $false) { Restart-Computer -Force } else { return }  # ок -> перезагрузка, иначе - отладка
                 }
                 
                 'Escape'
