@@ -132,12 +132,7 @@ function Edit-PartitionTable
                 $res = $true
         }
         
-        catch
-        {
-            $res = $false
-            
-            <# $Error | Out-Default #>
-        }
+        catch { $res = $false }
     }
     
     end { return $res }
@@ -164,38 +159,38 @@ function Install-Wim
         {
             if ( $ver -eq 'PE' -and (Test-Path -Path "$PEletter\.IT\PE\boot.wim") )
             {
-                Expand-WindowsImage -ImagePath "$PEletter\.IT\PE\boot.wim" -ApplyPath "$PEletter\" -Index 1 -Verify -ErrorAction Stop
+                $null = Expand-WindowsImage -ImagePath "$PEletter\.IT\PE\boot.wim" -ApplyPath "$PEletter\" -Index 1 -Verify -ErrorAction Stop
                 
                 Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "$PEletter\Windows", "/s $PEletter", "/f ALL"
                 
                 
                 # make RAM Disk object
-                bcdedit /create '{ramdiskoptions}' /d 'Windows PE, RAM DISK BOOT'
-                bcdedit /set    '{ramdiskoptions}' ramdisksdidevice "partition=$PEletter"
-                bcdedit /set    '{ramdiskoptions}' ramdisksdipath '\.IT\PE\boot.sdi'
-                (bcdedit /create /d "Windows PE, RAM DISK LOADER" /application osloader) -match '\{.*\}'  # "The entry '{e1679017-bc5a-11e9-89cf-a91b7c7227b0}' was successfully created."
+                bcdedit /create '{ramdiskoptions}' /d 'Windows PE, RAM DISK BOOT' | Out-Null
+                bcdedit /set    '{ramdiskoptions}' ramdisksdidevice "partition=$PEletter" | Out-Null
+                bcdedit /set    '{ramdiskoptions}' ramdisksdipath '\.IT\PE\boot.sdi' | Out-Null
+                (bcdedit /create /d "Windows PE, RAM DISK LOADER" /application osloader) -match '\{.*\}' | Out-Null  # "The entry '{e1679017-bc5a-11e9-89cf-a91b7c7227b0}' was successfully created."
                 $guid = $Matches[0]
                 
                 # make OS loader object
-                bcdedit /set $guid   device "ramdisk=[$PEletter]\.IT\PE\boot.wim,{ramdiskoptions}"
-                bcdedit /set $guid osdevice "ramdisk=[$PEletter]\.IT\PE\boot.wim,{ramdiskoptions}"
-                bcdedit /set $guid path '\Windows\System32\Boot\winload.exe'
-                bcdedit /set $guid systemroot '\Windows'
-                bcdedit /set $guid winpe yes
-                bcdedit /set $guid detecthal yes
+                bcdedit /set $guid   device "ramdisk=[$PEletter]\.IT\PE\boot.wim,{ramdiskoptions}" | Out-Null
+                bcdedit /set $guid osdevice "ramdisk=[$PEletter]\.IT\PE\boot.wim,{ramdiskoptions}" | Out-Null
+                bcdedit /set $guid path '\Windows\System32\Boot\winload.exe' | Out-Null
+                bcdedit /set $guid systemroot '\Windows' | Out-Null
+                bcdedit /set $guid winpe yes | Out-Null
+                bcdedit /set $guid detecthal yes | Out-Null
                 
-                bcdedit /displayorder $guid /addfirst  # + PE RAM-disk boot menu entry
-                bcdedit /delete '{default}' /cleanup
+                bcdedit /displayorder $guid /addfirst | Out-Null  # + PE RAM-disk boot menu entry
+                bcdedit /delete '{default}' /cleanup | Out-Null
             }
-            else
+            elseif ( (Test-Path -Path "$PEletter\.IT\$ver\install.wim") )
             {
-                Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
+                $null = Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
-                Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 <# -Verify #> -ErrorAction Stop
+                $null = Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 <# -Verify #> -ErrorAction Stop
                 
                 # Start-Process -Wait -FilePath 'dism.exe' -ArgumentList '/Apply-Image', "/ImageFile:$PEletter\.IT\$ver\install.wim", "/ApplyDir:$OSletter\", '/Index:1'
                 
-                bcdedit /delete '{default}' /cleanup  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
+                bcdedit /delete '{default}' /cleanup | Out-Null  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
                 
                 Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "$OSletter\Windows"
             }
@@ -203,12 +198,7 @@ function Install-Wim
             $res = $true
         }
         
-        catch
-        {
-            $res = $false
-            
-            <# $Error | Out-Default #>
-        }
+        catch { $res = $false }
     }
     
     end { return $res }
@@ -441,9 +431,9 @@ function Copy-WithCheck
     
     if ($null -ne $net)
     {
-        # $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
+        $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
         
-        $null = New-PSDrive -PSProvider FileSystem -NAME (Get-Random) -Root $net.netpath <# -Credential $cred #> -ErrorAction Stop
+        $null = New-PSDrive -PSProvider FileSystem -NAME (Get-Random) -Root $net.netpath -Credential $cred -ErrorAction Stop
     }
     
     try
@@ -641,7 +631,7 @@ function Use-Wenix
                         {
                             $log['Install-Wim PE'] = (Install-Wim -ver 'PE')
                             
-                            Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim -PE', $log['Install-Wim PE']) #_#
+                            Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim PE', $log['Install-Wim PE']) #_#
                         }
                         else { $log['restore RAM-disk from X:'] = $false }  # errors raised during copying - требуется внимание специалиста
                         
