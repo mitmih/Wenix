@@ -29,12 +29,12 @@ Set-PSReadlineKeyHandler -Chord Ctrl+d -Function DeleteCharOrExit  # выход 
 Set-PSReadlineKeyHandler -Chord Ctrl+f -ScriptBlock {  # запуск Far
     $d = "$env:SystemDrive"
     
-    if (Test-Path -Path "$env:SystemDrive\Debug-Mount_Z.cmd")
-    {
-        . "$env:SystemDrive\Debug-Mount_Z.cmd"
+    # if (Test-Path -Path "$env:SystemDrive\Debug-Mount_Z.cmd")
+    # {
+    #     . "$env:SystemDrive\Debug-Mount_Z.cmd"
         
-        if (Test-Path -Path 'Z:\') { $d = 'Z:' }
-    }
+    #     if (Test-Path -Path 'Z:\') { $d = 'Z:' }
+    # }
     
     Start-Process -FilePath "$env:SystemDrive\Far\Far.exe" -ArgumentList "$d $env:WinDir\System32\config\systemprofile\Documents\WindowsPowerShell\Modules\"
 }
@@ -102,5 +102,5 @@ Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
 # запуск меню
 
 Import-Module -Force Wenix
-
-Use-Wenix
+Get-Module Wenix
+# Use-Wenix
