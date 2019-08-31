@@ -381,12 +381,12 @@ function Test-Wim
         {
             $CheckListWim = [ordered]@{}  # одноразовый чек-лист, вывод для наглядности на Out-Default
             
-            # if (!$local)
-            # {
-            #     $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
+            if (!$local)
+            {
+                $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
                 
-            #     $drive = New-PSDrive -NAME ($ver + '_' + $name + '_wim') -PSProvider FileSystem -Root $s.netpath -Credential $cred <# -ErrorAction Stop #>
-            # }
+                $drive = New-PSDrive -NAME ($ver + '_' + $name + '_wim') -PSProvider FileSystem -Root $s.netpath -Credential $cred <# -ErrorAction Stop #>
+            }
             
             
             $OSdir = $s.netpath + "\.IT\$ver"
@@ -448,7 +448,7 @@ function Test-Wim
             $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # список проверенных источников файлов
             
             
-            # if ( !$local -and $drive ) { $drive | Remove-PSDrive ; $drive = $null }  # отключение сетевого диска
+            if ( !$local -and $drive ) { $drive | Remove-PSDrive ; $drive = $null }  # отключение сетевого диска
         }
     }
     
@@ -465,13 +465,13 @@ function Copy-WithCheck
     {
         $res = @()
         
-        # if ($null -ne $net)
-        # {
-        #     $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
+        if ($null -ne $net)
+        {
+            $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
             
-        #     $drive = New-PSDrive -NAME 'T' -PSProvider FileSystem -Root $net.netpath -Credential $cred -ErrorAction Stop
-        # }
-        # else { $drive = $null }
+            $drive = New-PSDrive -NAME 'T' -PSProvider FileSystem -Root $net.netpath -Credential $cred -ErrorAction Stop
+        }
+        else { $drive = $null }
         
         $filesFrom = (Get-ChildItem -Path $from -Recurse -Force | Get-FileHash -Algorithm MD5)
     }
@@ -511,7 +511,7 @@ function Copy-WithCheck
     
     end
     {
-        # if ($drive) { $drive | Remove-PSDrive }
+        if ($drive) { $drive | Remove-PSDrive }
         
         return $res
     }
@@ -690,9 +690,7 @@ function Use-Wenix
                         
                         foreach ( $wim in ($Sourses | Where-Object {$_.OS -eq $ver}) )
                         {
-                            $from = $wim.PSDrive + ":\.IT\$ver"
-                            
-                            $log['copying OS wim to PE volume'] = (Copy-WithCheck -from $from -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver")
+                            $log['copying OS wim to PE volume'] = (Copy-WithCheck -from $wim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver")
                             
                             if ( $log['copying OS wim to PE volume'] ) { break }
                         }
