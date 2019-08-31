@@ -1,11 +1,11 @@
 $volumes = @(
-    New-Object psobject -Property @{ letter = [char]'B' ; label =   'PE' ; size = 25GB ; active = $true}  # Active, bootmgr + winPE RAM-disk
+    New-Object psobject -Property @{ letter = [char]'B' ; label =   'PE' ; size = 25GB ; active = $true}  # Active, bootmgr + winPE RAM-disk + wim-files storage
     New-Object psobject -Property @{ letter = [char]'O' ; label =   'OS' ; size = 75GB ; active = $false}  # for windows
-    New-Object psobject -Property @{ letter = [char]'Q' ; label = 'Data' ; size = 0 ; active = $false}  # for data, will be resized to max
+    New-Object psobject -Property @{ letter = [char]'Q' ; label = 'Data' ; size = 0    ; active = $false}  # for data, will be resized to max
 )
 
 
-$NetDrv = @(
+$NetDrv = @(  # буквы на подключение сетевых шар
     'R'
     'S'
     'T'
@@ -156,7 +156,7 @@ function Edit-PartitionTable
 
 function Install-Wim
 {
-    param ($ver = '', $wim = $null <# , [switch]$PE = $false #>)
+    param ($ver = ''<# , [switch]$PE = $false #>)
     
     
     begin
@@ -197,9 +197,8 @@ function Install-Wim
                 bcdedit /displayorder $guid /addfirst  # + PE RAM-disk boot menu entry
                 bcdedit /delete '{default}' /cleanup
             }
-            else #if ( Test-Path -Path "$PEletter\.IT\$ver\install.wim" )
+            else
             {
-                "$wim" | Out-Default
                 Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
                 Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 <# -Verify #> -ErrorAction Stop
@@ -274,14 +273,14 @@ function Read-NetConfig
             if (($item.Context.PostContext[1].Split(':')[1].Trim()).Length -gt 0) { $GWs += $item.Context.PostContext[1].Split(':')[1].Trim() }
         }
         
-        foreach ($n in $NetDrv)
-        {
-            if (Get-PSDrive | Where-Object {$_.Name -eq $n})
-            {
-                # Remove-PSDrive -Name $n -Force -Scope Global  # doesn`t work!!!
-                Start-Process -FilePath 'net.exe' -ArgumentList 'use', ($n + ':'), '/delete'
-            }
-        }
+        # foreach ($n in $NetDrv)
+        # {
+        #     if (Get-PSDrive | Where-Object {$_.Name -eq $n})
+        #     {
+        #         # Remove-PSDrive -Name $n -Force -Scope Global  # doesn`t work!!!
+        #         Start-Process -FilePath 'net.exe' -ArgumentList 'use', ($n + ':'), '/delete'
+        #     }
+        # }
     }
     
     process
@@ -293,9 +292,6 @@ function Read-NetConfig
             $l = 0
             foreach ( $s in ($shares | Select-Object -First $NetDrv.Count) )
             {
-                # if (Test-Connection -Quiet -Count 3 -ComputerName $s.netpath.Split('\')[2])
-                # if (Test-NetConnection -InformationLevel Quiet -Port 445 -ComputerName $s.netpath.Split('\')[2])
-                
                 $tcp = New-Object Net.Sockets.TcpClient
                 
                 $connect = $tcp.BeginConnect( ($s.netpath.Split('\')[2]), 445, $null, $null)
@@ -308,7 +304,7 @@ function Read-NetConfig
                     
                     $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $v.user, (ConvertTo-SecureString $v.password -AsPlainText -Force)
                     
-                    $drive = New-PSDrive -Persist -NAME $NetDrv[$l] -PSProvider FileSystem -Root $v.netpath -Credential $cred -ErrorAction Stop
+                    $drive = New-PSDrive -NAME $NetDrv[$l] -PSProvider FileSystem -Root $v.netpath -Credential $cred -ErrorAction Stop
                     
                     $l++
                     
@@ -318,12 +314,12 @@ function Read-NetConfig
                         
                         $valid += $v
                     }
-                    # else { $drive | Remove-PSDrive }  # все равно не удаляет Persist сетевые диски
+                    # else { $drive | Remove-PSDrive -Force }
                 }
             }
         }
         
-        catch { <# $Error | Out-Default #> }
+        catch {}
     }
     
     end { return $valid }
@@ -383,9 +379,9 @@ function Test-Wim
             
             if (!$local)
             {
-                $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
+                # $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
                 
-                $drive = New-PSDrive -NAME ($ver + '_' + $name + '_wim') -PSProvider FileSystem -Root $s.netpath -Credential $cred <# -ErrorAction Stop #>
+                $drive = New-PSDrive -NAME ($ver + '_' + $name + '_wim') -PSProvider FileSystem -Root $s.netpath <# -Credential $cred #> -ErrorAction Stop
             }
             
             
@@ -448,7 +444,7 @@ function Test-Wim
             $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # список проверенных источников файлов
             
             
-            if ( !$local -and $drive ) { $drive | Remove-PSDrive ; $drive = $null }  # отключение сетевого диска
+            # if ( !$local -and $drive ) { $drive | Remove-PSDrive -Force ; $drive = $null }  # отключение сетевого диска
         }
     }
     
@@ -467,9 +463,9 @@ function Copy-WithCheck
         
         if ($null -ne $net)
         {
-            $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
+            # $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
             
-            $drive = New-PSDrive -NAME 'T' -PSProvider FileSystem -Root $net.netpath -Credential $cred -ErrorAction Stop
+            $drive = New-PSDrive -NAME 'T' -PSProvider FileSystem -Root $net.netpath <# -Credential $cred #> -ErrorAction Stop
         }
         else { $drive = $null }
         
@@ -511,7 +507,7 @@ function Copy-WithCheck
     
     end
     {
-        if ($drive) { $drive | Remove-PSDrive }
+        # if ($drive) { $drive | Remove-PSDrive -Force }
         
         return $res
     }
@@ -530,11 +526,9 @@ function Use-Wenix
         
         $log = [ordered]@{}
         
-        $PEsourses = @()  # набор источников файлов для сортировки и выбора самого свежего wim-файла
-        
-        $OSsourses = @()  # набор источников файлов для сортировки и выбора самого свежего wim-файла
-        
         $shares = @()
+        
+        $Sourses = @()  # единый набор источников PE и OS wim-файлов
     }
     
     process
@@ -572,12 +566,12 @@ function Use-Wenix
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig') #_#
                         
                         
-                        $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot'    -SharesList $shares
+                        $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot'    -SharesList $shares
                         
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork PE') #_#
                         
                         
-                        $OSsourses += Test-Wim -md5 -ver $ver -name 'install' -SharesList $shares
+                        $Sourses += Test-Wim -md5 -ver $ver -name 'install' -SharesList $shares
                         
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork OS') #_#
                     }
@@ -587,62 +581,58 @@ function Use-Wenix
                     
                     #region локальные источники
                     
-                    if (!$Disk0isOk) { $LettersExclude = (Get-Partition -DiskNumber 0 | Where-Object {'' -ne $_.DriveLetter}).DriveLetter }  # источники с этого диска бесполезны, т.к. ему нужна переразбивка
+                    $LettersExclude = if ($Disk0isOk) { @() } else { (Get-Partition -DiskNumber 0 | Where-Object {'' -ne $_.DriveLetter}).DriveLetter }  # источники с этого диска бесполезны, т.к. ему нужна переразбивка
                     
-                    $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot' #-exclude $LettersExclude
+                    $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot' #-exclude $LettersExclude
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
                     
                     
-                    $OSsourses += Test-Wim -md5 -ver $ver -name 'install' -exclude $LettersExclude
+                    $Sourses += Test-Wim -md5 -ver $ver -name 'install' -exclude $LettersExclude
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local OS') #_#
+                    
+                    $Sourses = $Sourses | Sort-Object -Property `
+                                @{Expression = {$_.OS};       Descending = $true},`
+                                @{Expression = {$_.date2mod}; Descending = $true},`
+                                @{Expression = {$_.Priority}; Descending = $false}
                     
                     #endregion
                     
                     
-
-                    if ( !($OSsourses.count -gt 0 -and $PEsourses.count -gt 0) )  # BUG HERE
-                    # установка невозможна: один или оба источника wim-файлов пустые
-                    {
-                        $log['exist PE source'] = $OSsourses.count -gt 0
-                        
-                        $log['exist OS source'] = $PEsourses.count -gt 0
-                    }
-                    else
+                    $log['exist PE source'] = $null -ne ($Sourses | Where-Object {$_.OS -eq 'PE'})
+                    
+                    $log['exist OS source'] = $null -ne ($Sourses | Where-Object {$_.OS -eq $ver})
+                    
+                    if ( $log['exist PE source'] -and $log['exist OS source'] )
                     # можно начинать установку
                     {
-                        $PEsourses = $PEsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, @{Expression = {$_.Priority}; Descending = $false}
-                        
-                        $OSsourses = $OSsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, @{Expression = {$_.Priority}; Descending = $false}
-                        
-                        
                         #region backup RAM-disk PE to memory
                         
                         $FTparams = @{
-                            'Property' = @(  
-                                'gw' , 
-                                'netpath'
-                                'password'
-                                'user'
+                            'Property' = @(
+                                # 'gw' ,
+                                # 'netpath'
+                                # 'password'
+                                # 'user'
                                 
                                 'PSDrive'
-                                'FileExist'
-                                'md5ok'
+                                # 'FileExist'
+                                # 'md5ok'
                                 'FilePath'
                                 
                                 'OS'
-                                'Root'
-                                'FileName'
+                                # 'Root'
+                                # 'FileName'
                                 'FileSize'
                                 'date2mod'
                                 'Priority'
                         )}
                         
-                        ((@() + $PEsourses) + "`n" + (@() + $OSsourses)) | Select-Object @FTparams | Format-Table *
+                        $Sourses | Select-Object @FTparams | Format-Table *
                         
                         
-                        foreach ($wim in $PEsourses)
+                        foreach ( $wim in ($Sourses | Where-Object {$_.OS -eq 'PE'}) )
                         {
                             $copy = if ($null -eq $wim.user) { Copy-WithCheck -from $wim.Root -to 'X:\.IT\PE' } else { Copy-WithCheck -from $wim.Root -to 'X:\.IT\PE' -net $wim }
                             
@@ -656,7 +646,7 @@ function Use-Wenix
                             }
                         }
                         
-                        if (!$log['backup ramdisk in memory']) { return }  # нет бэкапа RAM-диска - нет смысла продолжать т.к. не будет возможности восстановить загрузку хотя бы с PE
+                        if (!$log['backup ramdisk in memory']) { return }  # нет бэкапа RAM-диска - нет смысла продолжать т.к. не будет возможности хотя бы загрузиться с PE
                         
                         if ($STOP) { return }  #################################
                         
@@ -694,18 +684,25 @@ function Use-Wenix
                         
                         #region apply install.wim to 'OS' volume
                         
-                        foreach ($OSwim in $OSsourses)
+                        foreach ( $wim in ($Sourses | Where-Object {$_.OS -eq $ver}) )
                         {
-                            $log['copying OS wim to PE volume'] = (Copy-WithCheck -from $OSwim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver")
+                            $log['copying OS wim to PE volume'] = (Copy-WithCheck -from $wim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver"<#  -net $wim #>)
                             
                             if ( $log['copying OS wim to PE volume'] ) { break }
+                            
+                            # Copy-Item -Force -Recurse $wim.Root -Destination "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT"
                         }
                         
-                        $log['Install-Wim OS'] = (Install-Wim -ver $ver <# -wim $OSwim.FilePath #>)
+                        $log['Install-Wim OS'] = (Install-Wim -ver $ver <# -wim $wim.FilePath #>)
                         
                         Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim OS', $log['Install-Wim OS']) #_#
                         
                         #endregion
+                    }
+                    else
+                    # установка невозможна: один или оба источника wim-файлов пустые
+                    {
+                        return
                     }
                     
                     
