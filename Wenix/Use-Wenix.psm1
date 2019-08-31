@@ -192,7 +192,7 @@ function Install-Wim
                 "$wim" | Out-Default
                 Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
-                Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 -Verify -ErrorAction Stop
+                Expand-WindowsImage -ImagePath "$wim" -ApplyPath "$OSletter\" -Index 1 <# -Verify #> -ErrorAction Stop
                 
                 # Start-Process -Wait -FilePath 'dism.exe' -ArgumentList '/Apply-Image', "/ImageFile:$PEletter\.IT\$ver\install.wim", "/ApplyDir:$OSletter\", '/Index:1'
                 
@@ -200,7 +200,6 @@ function Install-Wim
                 
                 Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "$OSletter\Windows"
             }
-            else {}
             
             $res = $true
         }
@@ -278,7 +277,7 @@ function Read-NetConfig
                 {
                     $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
                     
-                    $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $s.netpath -Credential $cred -ErrorAction Stop
+                    $drive = New-PSDrive -NAME 'T' -PSProvider FileSystem -Root $s.netpath -Credential $cred -ErrorAction Stop
                     
                     if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
                     
@@ -411,7 +410,7 @@ function Test-Wim
             $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # список проверенных источников файлов
             
             
-            if ( !$local -and ($drive | Get-PSDrive) ) { $drive | Remove-PSDrive }  # отключение сетевого диска
+            if ( !$local -and $drive ) { $drive | Remove-PSDrive ; $drive = $null }  # отключение сетевого диска
         }
     }
     
@@ -420,17 +419,21 @@ function Test-Wim
 
 
 function Copy-WithCheck
-# копирует из папки в папку с проверкой md5
+# копирует из папки в папку с проверкой md5, сетевые диски подключает
 {
-    param (
-        $from,
-        $to,
-        $retry = 2
-    )
+    param ( $from, $to, $retry = 2, $net = $null )
     
     begin
     {
         $res = @()
+        
+        if ($null -ne $net)
+        {
+            $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
+            
+            $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $net.netpath -Credential $cred -ErrorAction Stop
+        }
+        else { $drive = $null }
         
         $filesFrom = Get-ChildItem -Force -Recurse -Path $from | Get-FileHash -Algorithm MD5
     }
@@ -468,7 +471,12 @@ function Copy-WithCheck
         Write-Host ( '{0,-5}copy to {1,-12}from {2,24} {3,24}' -f $(if ($res) {'OK'} else {'FAIL'}), $to, $from, '' ) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
     }
     
-    end { return $res }
+    end
+    {
+        if ($drive) { $drive | Remove-PSDrive }
+        
+        return $res
+    }
 }
 
 
@@ -572,6 +580,7 @@ function Use-Wenix
                         $FTparams = @{
                             'Property' = @(  
                                 'gw' , 
+                                
                                 # 'netpath'
                                 # 'password'
                                 # 'user'
@@ -590,23 +599,23 @@ function Use-Wenix
                         ((@() + $PEsourses) + "`n" + (@() + $OSsourses)) | Select-Object @FTparams | Format-Table *
                         
                         
-                        if ($STOP) { return }  #################################
-                        
-                        
-                        foreach ($PEwim in $PEsourses)
+                        foreach ($wim in $PEsourses)
                         {
-                            if ( (Copy-WithCheck -from $PEwim.Root -to 'X:\.IT\PE') )
+                            $copy = if ($null -eq $wim.user) { Copy-WithCheck -from $wim.Root -to 'X:\.IT\PE' } else { Copy-WithCheck -from $wim.Root -to 'X:\.IT\PE' -net $wim }
+                            
+                            $log['backup ramdisk in memory'] = $copy
+                            
+                            if ( $copy )
                             {
-                                $log['backup ramdisk in memory'] = $true
-                                
                                 Copy-Item -Force -Path $NetConfig -Destination 'X:\.IT\PE'
                                 
                                 break
                             }
-                            else { $log['backup ramdisk in memory'] = $false }
                         }
                         
-                        if (!$log['backup ramdisk in memory']) { return }  # нет бэкапа RAM-диска - нет возможности восстановить загрузку хотя бы с PE
+                        if (!$log['backup ramdisk in memory']) { return }  # нет бэкапа RAM-диска - нет смысла продолжать т.к. не будет возможности восстановить загрузку хотя бы с PE
+                        
+                        if ($STOP) { return }  #################################
                         
                         #endregion
                         
@@ -644,23 +653,14 @@ function Use-Wenix
                         
                         foreach ($OSwim in $OSsourses)
                         {
-                            # if ( (Copy-WithCheck -from $OSwim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver") )
-                            # {
-                            #     $log['copying OS install.wim to PE volume'] = $true
-                                
-                            #     break
-                            # }
-                            # else { $log['copying OS install.wim to PE volume'] = $false }
+                            $log['copying OS wim to PE volume'] = (Copy-WithCheck -from $OSwim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver")
                             
-                            # if ($log['copying OS install.wim to PE volume'])
-                            # {
-                                $log['Install-Wim OS'] = (Install-Wim -ver $ver -wim $OSwim.FilePath)
-                                
-                                if ( $log['Install-Wim OS'] ) { break }
-                                
-                                Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim OS', $log['Install-Wim OS']) #_#
-                            # }
+                            if ( $log['copying OS wim to PE volume'] ) { break }
                         }
+                        
+                        $log['Install-Wim OS'] = (Install-Wim -ver $ver <# -wim $OSwim.FilePath #>)
+                        
+                        Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim OS', $log['Install-Wim OS']) #_#
                         
                         #endregion
                     }
