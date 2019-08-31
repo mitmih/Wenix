@@ -199,7 +199,7 @@ function Install-Wim
             }
             else #if ( Test-Path -Path "$PEletter\.IT\$ver\install.wim" )
             {
-                # "$wim" | Out-Default
+                "$wim" | Out-Default
                 Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
                 Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 <# -Verify #> -ErrorAction Stop
@@ -274,14 +274,14 @@ function Read-NetConfig
             if (($item.Context.PostContext[1].Split(':')[1].Trim()).Length -gt 0) { $GWs += $item.Context.PostContext[1].Split(':')[1].Trim() }
         }
         
-        # foreach ($n in $NetDrv)
-        # {
-        #     if (Get-PSDrive | Where-Object {$_.Name -eq $n})
-        #     {
-        #         # Remove-PSDrive -Name $n -Force -Scope Global  # doesn`t work!!!
-        #         Start-Process -FilePath 'net.exe' -ArgumentList 'use', ($n + ':'), '/delete'
-        #     }
-        # }
+        foreach ($n in $NetDrv)
+        {
+            if (Get-PSDrive | Where-Object {$_.Name -eq $n})
+            {
+                # Remove-PSDrive -Name $n -Force -Scope Global  # doesn`t work!!!
+                Start-Process -FilePath 'net.exe' -ArgumentList 'use', ($n + ':'), '/delete'
+            }
+        }
     }
     
     process
@@ -530,9 +530,11 @@ function Use-Wenix
         
         $log = [ordered]@{}
         
-        $shares = @()
+        $PEsourses = @()  # набор источников файлов для сортировки и выбора самого свежего wim-файла
         
-        $Sourses = @()  # единый набор источников PE и OS wim-файлов
+        $OSsourses = @()  # набор источников файлов для сортировки и выбора самого свежего wim-файла
+        
+        $shares = @()
     }
     
     process
@@ -570,12 +572,12 @@ function Use-Wenix
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig') #_#
                         
                         
-                        $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot'    -SharesList $shares
+                        $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot'    -SharesList $shares
                         
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork PE') #_#
                         
                         
-                        $Sourses += Test-Wim -md5 -ver $ver -name 'install' -SharesList $shares
+                        $OSsourses += Test-Wim -md5 -ver $ver -name 'install' -SharesList $shares
                         
                         Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork OS') #_#
                     }
@@ -587,30 +589,34 @@ function Use-Wenix
                     
                     if (!$Disk0isOk) { $LettersExclude = (Get-Partition -DiskNumber 0 | Where-Object {'' -ne $_.DriveLetter}).DriveLetter }  # источники с этого диска бесполезны, т.к. ему нужна переразбивка
                     
-                    $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot' #-exclude $LettersExclude
+                    $PEsourses += Test-Wim -md5 -ver 'PE' -name 'boot' #-exclude $LettersExclude
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
                     
                     
-                    $Sourses += Test-Wim -md5 -ver $ver -name 'install' -exclude $LettersExclude
+                    $OSsourses += Test-Wim -md5 -ver $ver -name 'install' -exclude $LettersExclude
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local OS') #_#
-                    
-                    $Sourses = $Sourses | Sort-Object -Property `
-                                @{Expression = {$_.OS};       Descending = $true},`
-                                @{Expression = {$_.date2mod}; Descending = $true},`
-                                @{Expression = {$_.Priority}; Descending = $false}
                     
                     #endregion
                     
                     
-                    $log['exist PE source'] = $null -ne ($Sourses | Where-Object {$_.OS -eq 'PE'})
-                    
-                    $log['exist OS source'] = $null -ne ($Sourses | Where-Object {$_.OS -eq $ver})
-                    
-                    if ( $log['exist PE source'] -and $log['exist OS source'] )
+
+                    if ( !($OSsourses.count -gt 0 -and $PEsourses.count -gt 0) )  # BUG HERE
+                    # установка невозможна: один или оба источника wim-файлов пустые
+                    {
+                        $log['exist PE source'] = $OSsourses.count -gt 0
+                        
+                        $log['exist OS source'] = $PEsourses.count -gt 0
+                    }
+                    else
                     # можно начинать установку
                     {
+                        $PEsourses = $PEsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, @{Expression = {$_.Priority}; Descending = $false}
+                        
+                        $OSsourses = $OSsourses | Sort-Object -Property @{Expression = {$_.date2mod}; Descending = $true}, @{Expression = {$_.Priority}; Descending = $false}
+                        
+                        
                         #region backup RAM-disk PE to memory
                         
                         $FTparams = @{
@@ -633,10 +639,10 @@ function Use-Wenix
                                 'Priority'
                         )}
                         
-                        $Sourses | Select-Object @FTparams | Format-Table *
+                        ((@() + $PEsourses) + "`n" + (@() + $OSsourses)) | Select-Object @FTparams | Format-Table *
                         
                         
-                        foreach ( $wim in ($Sourses | Where-Object {$_.OS -eq 'PE'}) )
+                        foreach ($wim in $PEsourses)
                         {
                             $copy = if ($null -eq $wim.user) { Copy-WithCheck -from $wim.Root -to 'X:\.IT\PE' } else { Copy-WithCheck -from $wim.Root -to 'X:\.IT\PE' -net $wim }
                             
@@ -650,7 +656,7 @@ function Use-Wenix
                             }
                         }
                         
-                        if (!$log['backup ramdisk in memory']) { return }  # нет бэкапа RAM-диска - нет смысла продолжать т.к. не будет возможности хотя бы загрузиться с PE
+                        if (!$log['backup ramdisk in memory']) { return }  # нет бэкапа RAM-диска - нет смысла продолжать т.к. не будет возможности восстановить загрузку хотя бы с PE
                         
                         if ($STOP) { return }  #################################
                         
@@ -688,23 +694,18 @@ function Use-Wenix
                         
                         #region apply install.wim to 'OS' volume
                         
-                        foreach ( $wim in ($Sourses | Where-Object {$_.OS -eq $ver}) )
+                        foreach ($OSwim in $OSsourses)
                         {
-                            $log['copying OS wim to PE volume'] = (Copy-WithCheck -from $wim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver")
+                            $log['copying OS wim to PE volume'] = (Copy-WithCheck -from $OSwim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver")
                             
                             if ( $log['copying OS wim to PE volume'] ) { break }
                         }
                         
-                        $log['Install-Wim OS'] = (Install-Wim -ver $ver <# -wim $wim.FilePath #>)
+                        $log['Install-Wim OS'] = (Install-Wim -ver $ver <# -wim $OSwim.FilePath #>)
                         
                         Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim OS', $log['Install-Wim OS']) #_#
                         
                         #endregion
-                    }
-                    else
-                    # установка невозможна: один или оба источника wim-файлов пустые
-                    {
-                        return
                     }
                     
                     
