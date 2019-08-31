@@ -337,11 +337,23 @@ REM         ) else ( pause )
 REM make 2nd iso
     if errorlevel 0 (
         
+        REM 10
+        
         if not exist "%wd%\%arc%\media\.IT\10\" ( mkdir "%wd%\%arc%\media\.IT\10" )
         
         mklink /h "%wd%\%arc%\media\.IT\10\install.wim"  "%wd%\..\..\..\..\..\..\_iso\10_mod\iso\sources\install.wim"
         
         mklink /h "%wd%\%arc%\media\.IT\10\install.wim.md5"  "%wd%\..\..\..\..\..\..\_iso\10_mod\iso\sources\install.wim.md5"
+        
+        
+        REM REM 7
+        
+        REM if not exist "%wd%\%arc%\media\.IT\7\" ( mkdir "%wd%\%arc%\media\.IT\7" )
+        
+        REM mklink /h "%wd%\%arc%\media\.IT\7\install.wim"  "%wd%\..\..\..\..\..\..\_iso\7_mod\iso\sources\install.wim"
+        
+        REM mklink /h "%wd%\%arc%\media\.IT\7\install.wim.md5"  "%wd%\..\..\..\..\..\..\_iso\7_mod\iso\sources\install.wim.md5"
+        
         
         "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0Win10PE_x64_LTI_10.iso"
     
