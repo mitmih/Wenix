@@ -24,4 +24,4 @@ Get-Module -Name Wenix
 # $PEloc, $OSloc, $PEnet, $OSnet | ft *
 
 
-Use-Wenix
+Use-Wenix -STOP
