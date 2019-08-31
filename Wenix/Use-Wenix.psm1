@@ -315,9 +315,10 @@ function Read-NetConfig
                     if ([System.IO.Directory]::Exists($s.netpath))
                     {
                         $v.PSDrive = $drive.Name
+                        
                         $valid += $v
                     }
-                    else { $drive | Remove-PSDrive }
+                    # else { $drive | Remove-PSDrive }  # все равно не удаляет Persist сетевые диски
                 }
             }
         }
@@ -621,12 +622,13 @@ function Use-Wenix
                         $FTparams = @{
                             'Property' = @(  
                                 'gw' , 
-                                
                                 'netpath'
                                 'password'
                                 'user'
-                                # 'FileExist'
-                                # 'md5ok'
+                                
+                                'PSDrive'
+                                'FileExist'
+                                'md5ok'
                                 'FilePath'
                                 
                                 'OS'
