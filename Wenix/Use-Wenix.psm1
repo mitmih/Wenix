@@ -431,7 +431,7 @@ function Copy-WithCheck
         {
             $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
             
-            $drive = New-PSDrive -NAME T -PSProvider FileSystem -Root $net.netpath -Credential $cred -ErrorAction Stop
+            $drive = New-PSDrive -NAME 'T' -PSProvider FileSystem -Root $net.netpath -Credential $cred -ErrorAction Stop
         }
         else { $drive = $null }
         
@@ -507,7 +507,9 @@ function Use-Wenix
             {
                 { $_ -in @( 'D0', 'D7' ) }  # нажали 0 или 7
                 {
-                    Write-Host ("  <<<     selected {0,61}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black #| Out-Default
+                    Write-Host ("  <<<     selected{0,62}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black
+                    
+                    if ($STOP) { Write-Host ("    MODE    STOP{0,64}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black }
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
                     
@@ -581,12 +583,12 @@ function Use-Wenix
                             'Property' = @(  
                                 'gw' , 
                                 
-                                # 'netpath'
-                                # 'password'
-                                # 'user'
+                                'netpath'
+                                'password'
+                                'user'
                                 # 'FileExist'
                                 # 'md5ok'
-                                # 'FilePath'
+                                'FilePath'
                                 
                                 'OS'
                                 'Root'
