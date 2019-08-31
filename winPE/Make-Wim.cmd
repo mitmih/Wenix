@@ -173,20 +173,20 @@ REM добавление в корень системного диска WinPE: 
 
 
 
-REM to be or not to be
+REM REM to be or not to be
     
-    set /p action="1 - commit, 0 = discard: "
+REM     set /p action="1 - commit, 0 = discard: "
     
-    if /i %action% EQU 1 (
+REM     if /i %action% EQU 1 (
         
         dism /unmount-wim /mountdir:%mnt% /commit
     
-    ) else (
+REM     ) else (
         
-        dism /unmount-wim /mountdir:%mnt% /discard
+REM         dism /unmount-wim /mountdir:%mnt% /discard
         
-        exit
-    )
+REM         exit
+REM     )
 
 
 
@@ -203,13 +203,22 @@ REM compress and calculate MD5
         
     ) else ( pause )
 
-echo before ISO making... && pause >nul
+REM echo before ISO making... && pause >nul
 
 REM make iso-file
+    
     if errorlevel 0 (
         
+        if not exist "%wd%\%arc%\media\.IT\PE\" ( mkdir "%wd%\%arc%\media\.IT\PE" )
+        
+        mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim"  "%wd%\%arc%\media\sources\boot.wim"
+        
+        mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim.md5"  "%wd%\%arc%\media\sources\boot.wim.md5"
+        
+        mklink /h "%wd%\%arc%\media\.IT\PE\boot.sdi"  "%wd%\%arc%\media\Boot\boot.sdi"
+        
         "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0Win10PE_x64_LTI_1_SINGLE.iso"
-
+    
     ) else ( pause )
 
 
