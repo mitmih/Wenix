@@ -146,7 +146,7 @@ function Edit-PartitionTable
 
 function Install-Wim
 {
-    param ($ver = ''<# , [switch]$PE = $false #>)
+    param ($ver = '', $wim = $null <# , [switch]$PE = $false #>)
     
     
     begin
@@ -187,13 +187,14 @@ function Install-Wim
                 bcdedit /displayorder $guid /addfirst  # + PE RAM-disk boot menu entry
                 bcdedit /delete '{default}' /cleanup
             }
-            elseif ( Test-Path -Path "$PEletter\.IT\$ver\install.wim" )
+            else #if ( Test-Path -Path "$PEletter\.IT\$ver\install.wim" )
             {
+                "$wim" | Out-Default
                 Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
-                # Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 -Verify -ErrorAction Stop
+                Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 -Verify -ErrorAction Stop
                 
-                Start-Process -Wait -FilePath 'dism.exe' -ArgumentList '/Apply-Image', "/ImageFile:$PEletter\.IT\$ver\install.wim", "/ApplyDir:$OSletter\", '/Index:1'
+                # Start-Process -Wait -FilePath 'dism.exe' -ArgumentList '/Apply-Image', "/ImageFile:$PEletter\.IT\$ver\install.wim", "/ApplyDir:$OSletter\", '/Index:1'
                 
                 bcdedit /delete '{default}' /cleanup  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
                 
@@ -473,7 +474,7 @@ function Copy-WithCheck
 
 function Use-Wenix
 {
-    param ()
+    param ([switch]$STOP = $false)
     
     begin
     {
@@ -554,9 +555,9 @@ function Use-Wenix
                     if ( !($OSsourses.count -gt 0 -and $PEsourses.count -gt 0) )  # BUG HERE
                     # установка невозможна: один или оба источника wim-файлов пустые
                     {
-                        $log['exist PE source'] = $OSsourses.count -ne 0
+                        $log['exist PE source'] = $OSsourses.count -gt 0
                         
-                        $log['exist OS source'] = $PEsourses.count -ne 0
+                        $log['exist OS source'] = $PEsourses.count -gt 0
                     }
                     else
                     # можно начинать установку
@@ -570,23 +571,26 @@ function Use-Wenix
                         
                         $FTparams = @{
                             'Property' = @(  
-                                # 'gw' , 
+                                'gw' , 
                                 # 'netpath'
                                 # 'password'
                                 # 'user'
                                 # 'FileExist'
                                 # 'md5ok'
                                 # 'FilePath'
-
+                                
                                 'OS'
+                                'Root'
                                 'FileName'
                                 'FileSize'
-                                'Root'
                                 'date2mod'
                                 'Priority'
                         )}
                         
                         ((@() + $PEsourses) + "`n" + (@() + $OSsourses)) | Select-Object @FTparams | Format-Table *
+                        
+                        
+                        if ($STOP) { return }  #################################
                         
                         
                         foreach ($PEwim in $PEsourses)
@@ -602,7 +606,7 @@ function Use-Wenix
                             else { $log['backup ramdisk in memory'] = $false }
                         }
                         
-                        if (!$log['backup ramdisk in memory']) { return }
+                        if (!$log['backup ramdisk in memory']) { return }  # нет бэкапа RAM-диска - нет возможности восстановить загрузку хотя бы с PE
                         
                         #endregion
                         
@@ -613,7 +617,7 @@ function Use-Wenix
                         
                         if ( $Disk0isOk )  # remove all except .IT # overwrite with the latest found win PE boot.wim
                         {
-                            Get-Item -Path "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\*" -Exclude '.IT' -Force | Remove-Item -Force -Recurse
+                            Get-Item -Path "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\*" -Exclude '.IT' -Force | Remove-Item -Force -Recurse  # очистка тома 'PE' от старой non-ram PE
                             
                             Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Mount-Standart') #_#
                         }
@@ -631,7 +635,7 @@ function Use-Wenix
                             
                             Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim -PE', $log['Install-Wim PE']) #_#
                         }
-                        else { $log['backup ramdisk to memory'] = $false }  # errors raised during copying - требуется внимание специалиста
+                        else { $log['restore RAM-disk from X:'] = $false }  # errors raised during copying - требуется внимание специалиста
                         
                         #endregion
                         
@@ -640,21 +644,22 @@ function Use-Wenix
                         
                         foreach ($OSwim in $OSsourses)
                         {
-                            if ( (Copy-WithCheck -from $OSwim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver") )
-                            {
-                                $log['copying OS install.wim to PE volume'] = $true
+                            # if ( (Copy-WithCheck -from $OSwim.Root -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver") )
+                            # {
+                            #     $log['copying OS install.wim to PE volume'] = $true
                                 
-                                break
-                            }
-                            else { $log['copying OS install.wim to PE volume'] = $false }
-                        }
-                        
-                        
-                        if ($log['copying OS install.wim to PE volume'])
-                        {
-                            $log['Install-Wim OS'] = (Install-Wim -ver $ver)
+                            #     break
+                            # }
+                            # else { $log['copying OS install.wim to PE volume'] = $false }
                             
-                            Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim OS', $log['Install-Wim OS']) #_#
+                            # if ($log['copying OS install.wim to PE volume'])
+                            # {
+                                $log['Install-Wim OS'] = (Install-Wim -ver $ver -wim $OSwim.FilePath)
+                                
+                                if ( $log['Install-Wim OS'] ) { break }
+                                
+                                Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim OS', $log['Install-Wim OS']) #_#
+                            # }
                         }
                         
                         #endregion
