@@ -5,6 +5,16 @@ $volumes = @(
 )
 
 
+$NetDrv = @(
+    'R'
+    'S'
+    'T'
+    'U'
+    'V'
+    'W'
+)
+
+
 function Show-Menu
 {
 <#
@@ -192,7 +202,7 @@ function Install-Wim
                 "$wim" | Out-Default
                 Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
-                Expand-WindowsImage -ImagePath "$wim" -ApplyPath "$OSletter\" -Index 1 <# -Verify #> -ErrorAction Stop
+                Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 <# -Verify #> -ErrorAction Stop
                 
                 # Start-Process -Wait -FilePath 'dism.exe' -ArgumentList '/Apply-Image', "/ImageFile:$PEletter\.IT\$ver\install.wim", "/ApplyDir:$OSletter\", '/Index:1'
                 
@@ -255,13 +265,22 @@ function Read-NetConfig
         
         $valid = @()  # список рабочих сетевых шар
         
-        $GWs = @()  # список ip-адресов шлюзов, 
+        $GWs = @()  # список ip-адресов шлюзов
         
         # Start-Process -FilePath 'wpeutil' -ArgumentList 'WaitForNetwork' -Wait  # ожидание инициализации сети
         
         foreach ($item in (ipconfig | Select-String -Pattern 'ipv4' -Context 0,2))
         {
             if (($item.Context.PostContext[1].Split(':')[1].Trim()).Length -gt 0) { $GWs += $item.Context.PostContext[1].Split(':')[1].Trim() }
+        }
+        
+        foreach ($n in $NetDrv)
+        {
+            if (Get-PSDrive | ? {$_.Name -eq $n})
+            {
+                # Remove-PSDrive -Name $n -Force -Scope Global  # doesn`t work!!!
+                Start-Process -FilePath 'net.exe' -ArgumentList 'use', ($n + ':'), '/delete'
+            }
         }
     }
     
@@ -271,17 +290,29 @@ function Read-NetConfig
         {
             foreach ($gw in $GWs) { $shares += Import-Csv -Path $file -ErrorAction Stop | Where-Object { $_.gw -match $gw} }
             
-            foreach ($s in $shares)
+            $l = 0
+            foreach ( $s in ($shares | Select-Object -First $NetDrv.Count) )
             {
-                if (Test-Connection -Quiet -Count 3 -ComputerName $s.netpath.Split('\')[2])
+                # if (Test-Connection -Quiet -Count 3 -ComputerName $s.netpath.Split('\')[2])
+                if (Test-NetConnection -InformationLevel Quiet -Port 445 -ComputerName $s.netpath.Split('\')[2])
+                # $c = New-Object Net.Sockets.TcpClient
+                # $c.ReceiveTimeout = 10
+                # $c.Connect( ($s.netpath.Split('\')[2]), 445)
+                # if ($c.Connected)
                 {
-                    $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
+                    $v = $s | Select-Object -Property *, 'PSDrive'
                     
-                    $drive = New-PSDrive -NAME 'T' -PSProvider FileSystem -Root $s.netpath -Credential $cred -ErrorAction Stop
+                    $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $v.user, (ConvertTo-SecureString $v.password -AsPlainText -Force)
                     
-                    if ([System.IO.Directory]::Exists($s.netpath)) { $valid += $s }
+                    $drive = New-PSDrive -Persist -NAME $NetDrv[$l] -PSProvider FileSystem -Root $v.netpath -Credential $cred -ErrorAction Stop
                     
-                    $drive | Remove-PSDrive
+                    if ([System.IO.Directory]::Exists($s.netpath))
+                    {
+                        $l++
+                        $v.PSDrive = $drive.Name
+                        $valid += $v
+                    }
+                    else { $drive | Remove-PSDrive }
                 }
             }
         }
@@ -333,6 +364,7 @@ function Test-Wim
                         'netpath'   = ($lv.DriveLetter + ':')
                         "user"      = $null
                         "password"  = $null
+                        "PSDrive"   = $lv.DriveLetter
                     })
             }
         }
@@ -435,7 +467,7 @@ function Copy-WithCheck
         }
         else { $drive = $null }
         
-        $filesFrom = Get-ChildItem -Force -Recurse -Path $from | Get-FileHash -Algorithm MD5
+        $filesFrom = (Get-ChildItem -Path $from -Recurse -Force | Get-FileHash -Algorithm MD5)
     }
     
     process
