@@ -1,13 +1,13 @@
 Import-Module -Force Wenix
 Get-Module -Name Wenix
 
-$file = Find-NetConfig
+# $file = Find-NetConfig
 
 # $PEloc = Test-WimNet -md5 -ver 'PE' -name 'boot'    
 # $OSloc = Test-WimNet -md5 -ver '10' -name 'install' 
 
-$shares = @()
-if ($null -ne $file) { $shares += Read-NetConfig -file $file } # else { $shares = @() }
+# $shares = @()
+# if ($null -ne $file) { $shares += Read-NetConfig -file $file } # else { $shares = @() }
 
 # # $ok = @{} ; $ver = '10' ; $name = 'install'
 # if ($shares.Count -gt 0)
@@ -24,4 +24,4 @@ if ($null -ne $file) { $shares += Read-NetConfig -file $file } # else { $shares 
 # $PEloc, $OSloc, $PEnet, $OSnet | ft *
 
 
-# Use-Wenix -STOP
+Use-Wenix -STOP
