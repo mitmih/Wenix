@@ -306,14 +306,6 @@ function Test-Wim  # ищет / проверяет / возвращает про
         {
             $CheckListWim = [ordered]@{}  # одноразовый чек-лист, вывод для наглядности на Out-Default
             
-            # if (!$local)
-            # {
-            #     $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $s.user, (ConvertTo-SecureString $s.password -AsPlainText -Force)
-                
-            #     $null = New-PSDrive -PSProvider FileSystem -NAME (Get-Random) -Root $s.netpath -Credential $cred -ErrorAction Stop
-            # }
-            
-            
             $OSdir = $s.netpath + "\.IT\$ver"
             
             $v = $s | Select-Object -Property *, 'OS', 'FileName', 'FileExist', 'md5ok', 'date2mod', 'Priority', 'FilePath', 'FileSize', 'Root'  # замена конструкции 'Add-Member -Force', т.к. Add-Member изменяет исходный объект и при повторном вызове этой же функции без форсирования валятся ошибки, что такое NoteProperty уже существует
@@ -495,13 +487,6 @@ function Copy-WithCheck  # копирует из папки в папку с п�
     if ($from.Trim() -eq $to.Trim()) { return $true }
     
     $res = @()
-    
-    # if ($null -ne $net)
-    # {
-    #     $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $net.user, (ConvertTo-SecureString $net.password -AsPlainText -Force)
-        
-    #     $null = New-PSDrive -PSProvider FileSystem -NAME (Get-Random) -Root $net.netpath -Credential $cred -ErrorAction Stop
-    # }
     
     try
     {
