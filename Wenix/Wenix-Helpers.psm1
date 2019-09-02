@@ -159,8 +159,6 @@ function Read-NetConfig  # читает конфиг сетевых источн
         
         $NetDriveLetters = Get-VacantLetters  # если вдруг все буквы окажутся занятыми - нужно отключать лишнее оборудование (кард-ридеры напр.)
         
-        # if (!$NetDriveLetters) { $NetDriveLetters = @( 'R', 'S', 'T', 'U', 'V', 'W' ) }
-        
         $limit = $NetDriveLetters.Count
     }
     
@@ -194,9 +192,8 @@ function Read-NetConfig  # читает конфиг сетевых источн
                         
                         $n++
                     }
-                    catch [System.ComponentModel.Win32Exception]
+                    catch  # [System.ComponentModel.Win32Exception]
                     {
-                        # [System.ComponentModel.Win32Exception]
                         "$($v.netpath) does NOT EXIST" | Out-Default
                     }
                     
@@ -207,7 +204,6 @@ function Read-NetConfig  # читает конфиг сетевых источн
                         $valid += $v
                         
                     }
-                    # else { $drive | Remove-PSDrive -Scope 'Global' }
                 }
             }
     }
@@ -339,7 +335,7 @@ function Test-Wim  # ищет / проверяет / возвращает про
                 
                 $v.FileSize = ('{0,6:N0} MB' -f ($file.Length / 1MB))
                 
-                $v.date2mod = $file.LastWriteTimeUtc  # LastWriteTime это метка изменения содержимого файла и она сохраняется при копировании, т.е. если в процессе deploy`я wim-файлов по конечным сетевым папкам и дискам этот атрибут сохранится - его можно использовать для выбора самого свежего файла для развёртывания
+                $v.date2mod = $file.LastWriteTime  #Utc  # LastWriteTimeUtc  # дата изменения содержания файла, сохраняется при копировании файла - используется для выбора самого свежего wim-файла (предположительно в процессе deploy`я wim-файлов этот атрибут сохранится)
                 
                 $v.Priority = if ($local) {0} else {1}  # приоритет при выборе источника будет выше у локальных файлов
                 
