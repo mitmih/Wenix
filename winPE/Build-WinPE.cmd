@@ -211,11 +211,13 @@ REM make iso-file
         
         if not exist "%wd%\%arc%\media\.IT\PE\" ( mkdir "%wd%\%arc%\media\.IT\PE" )
         
-        mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim"        "%wd%\%arc%\media\sources\boot.wim"
+        mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim"                "%wd%\%arc%\media\sources\boot.wim"
         
-        mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim.md5"    "%wd%\%arc%\media\sources\boot.wim.md5"
+        mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim.md5"            "%wd%\%arc%\media\sources\boot.wim.md5"
         
-        mklink /h "%wd%\%arc%\media\.IT\PE\boot.sdi"        "%wd%\%arc%\media\Boot\boot.sdi"
+        mklink /h "%wd%\%arc%\media\.IT\PE\boot.sdi"                "%wd%\%arc%\media\Boot\boot.sdi"
+        
+        mklink /h "%wd%\%arc%\media\.IT\PE\Add-2nd_boot_entry.cmd"  "%wd%\..\..\scripts_helpers\Add-WinPE_RAMDisk_to_boot_menu_from_WINDOWS.cmd"
         
         rd /s /q "%wd%\%arc%\media\bg-bg"
         rd /s /q "%wd%\%arc%\media\cs-cz"
