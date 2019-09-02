@@ -363,9 +363,6 @@ function Test-Wim  # ищет / проверяет / возвращает про
             
             
             $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # список проверенных источников файлов
-            
-            
-            # if ( !$local -and $drive ) { $drive | Remove-PSDrive -Force ; $drive = $null }  # отключение сетевого диска
         }
     }
     
