@@ -5,6 +5,9 @@ $volumes = @(  # схема разбивки ЖД
 )
 
 
+$BootStrap = '.IT\PE\BootStrap.csv'
+
+
 function Show-Menu  # отображает меню
 {
 <#
@@ -70,7 +73,7 @@ function Find-NetConfig  # ищет на локальных разделах с�
     {
         foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
         {
-            $p = $v.DriveLetter + ':\.IT\PE\BootStrap.csv'
+            $p = $v.DriveLetter + ':\' + $BootStrap
             
             if (Test-Path -Path $p)
             {
@@ -538,7 +541,7 @@ function Copy-WithCheck  # копирует из папки в папку с п�
 }
 
 
-function Reset-OpticalDrive
+function Reset-OpticalDrive  # отключение виртуального привода
 {
     param ()
     
