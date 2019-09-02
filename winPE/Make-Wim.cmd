@@ -211,11 +211,11 @@ REM make iso-file
         
         if not exist "%wd%\%arc%\media\.IT\PE\" ( mkdir "%wd%\%arc%\media\.IT\PE" )
         
-        mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim"  "%wd%\%arc%\media\sources\boot.wim"
+        mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim"        "%wd%\%arc%\media\sources\boot.wim"
         
-        mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim.md5"  "%wd%\%arc%\media\sources\boot.wim.md5"
+        mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim.md5"    "%wd%\%arc%\media\sources\boot.wim.md5"
         
-        mklink /h "%wd%\%arc%\media\.IT\PE\boot.sdi"  "%wd%\%arc%\media\Boot\boot.sdi"
+        mklink /h "%wd%\%arc%\media\.IT\PE\boot.sdi"        "%wd%\%arc%\media\Boot\boot.sdi"
         
         rd /s /q "%wd%\%arc%\media\bg-bg"
         rd /s /q "%wd%\%arc%\media\cs-cz"
