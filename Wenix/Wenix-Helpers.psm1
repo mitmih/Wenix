@@ -257,43 +257,6 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
 }
 
 
-function Edit-PartitionTable  # очищает диск полностью и пересоздаёт разделы согласно $volumes
-{
-    param ( $pos = 0 )
-    
-    
-    begin { $res = $false }
-    
-    process
-    {
-        try
-        {
-            Clear-Disk -Number $pos -RemoveData -RemoveOEM -Confirm:$false
-            
-            Initialize-Disk -Number $pos -PartitionStyle MBR
-            
-            foreach ($v in $volumes)
-            {
-                $params = @{
-                    'DiskNumber'  = $pos
-                    'DriveLetter' = $v.letter
-                    'ErrorAction' = 'Stop'
-                    'IsActive'    = $v.active
-                }
-                if ($v.size -gt 0) {$params['Size'] = $v.size} else {$params['UseMaximumSize'] = $true}
-                
-                New-Partition @params | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel $v.label -ErrorAction Stop }
-                
-                $res = $true
-        }
-        
-        catch { $res = $false }
-    }
-    
-    end { return $res }
-}
-
-
 function Test-Wim  # ищет / проверяет / возвращает проверенные по md5 источники wim-файлов
 {
     [CmdletBinding()]
@@ -419,6 +382,43 @@ function Test-Wim  # ищет / проверяет / возвращает про
 }
 
 
+function Edit-PartitionTable  # очищает диск полностью и пересоздаёт разделы согласно $volumes
+{
+    param ( $pos = 0 )
+    
+    
+    begin { $res = $false }
+    
+    process
+    {
+        try
+        {
+            Clear-Disk -Number $pos -RemoveData -RemoveOEM -Confirm:$false
+            
+            Initialize-Disk -Number $pos -PartitionStyle MBR
+            
+            foreach ($v in $volumes)
+            {
+                $params = @{
+                    'DiskNumber'  = $pos
+                    'DriveLetter' = $v.letter
+                    'ErrorAction' = 'Stop'
+                    'IsActive'    = $v.active
+                }
+                if ($v.size -gt 0) {$params['Size'] = $v.size} else {$params['UseMaximumSize'] = $true}
+                
+                New-Partition @params | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel $v.label -ErrorAction Stop }
+                
+                $res = $true
+        }
+        
+        catch { $res = $false }
+    }
+    
+    end { return $res }
+}
+
+
 function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> на раздел 'PE', install.wim -> 'OS'
 {
     param ($ver = ''<# , [switch]$PE = $false #>)
@@ -535,4 +535,26 @@ function Copy-WithCheck  # копирует из папки в папку с п�
     }
     
     return $res
+}
+
+
+function Reset-OpticalDrive
+{
+    param ()
+    
+    
+    try
+    {
+        $ComRecorder = New-Object -ComObject 'IMAPI2.MsftDiscRecorder2'
+        
+        $ComRecorder.InitializeDiscRecorder( (New-Object -ComObject 'IMAPI2.MsftDiscMaster2') )
+        
+        $ComRecorder.EjectMedia()
+        
+        $ComRecorder.CloseTray()
+    }
+    
+    catch { $_ | Out-Default }
+    
+    return $null
 }
