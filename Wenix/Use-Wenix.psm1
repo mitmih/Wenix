@@ -196,7 +196,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                     Write-Host ("{0,5:N1} minutes {1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage reboot', ($log.Values -notcontains $false)) -BackgroundColor Magenta -ForegroundColor Black #_#
                     
                     
-                    # $log['debug'] = $false
+                    # $log['debug'] = $false  # for debug
                     if ($log.Values -notcontains $false)
                     {
                         $cycle = $false
@@ -228,3 +228,6 @@ function Use-Wenix  # главный поток исполнения скрип�
     
     end {}
 }
+
+
+Export-ModuleMember -Variable *  # 'volumes', 'BootStrap'
