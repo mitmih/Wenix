@@ -69,7 +69,7 @@ function Find-NetConfig  # ищет на локальных разделах с�
     param ()
     
     
-    begin { $res = $null }
+    begin { $res = @() }
     
     process
     {
@@ -77,16 +77,11 @@ function Find-NetConfig  # ищет на локальных разделах с�
         {
             $p = $v.DriveLetter + ':\' + $BootStrap
             
-            if (Test-Path -Path $p)
-            {
-                $res = Get-Item -Path $p
-                
-                break
-            }
+            if (Test-Path -Path $p) { $res += Get-Item -Path $p }
         }
     }
     
-    end { return $res }
+    end { return ($res | Sort-Object -Property 'LastWriteTime' -Descending | Select-Object -First 1) }
 }
 
 
@@ -553,11 +548,7 @@ function Reset-OpticalDrive  # отключение виртуального п�
         $ComRecorder.CloseTray()
     }
     
-    catch
-    {
-        # $_ | Out-Default
-        $_ | Out-Null
-    }
+    catch { $_ | Out-Null }
     
     return $null
 }
@@ -585,3 +576,8 @@ function Set-NextBoot  # перезагрузка в дефолт-пункт (ч
     
     bcdedit /store $bcd.FullName /bootsequence '{default}' | Out-Null
 }
+
+
+Export-ModuleMember -Function *
+
+Export-ModuleMember -Variable *  # 'volumes', 'BootStrap'
