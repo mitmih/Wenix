@@ -1,15 +1,3 @@
-$volumes = @(  # схема разбивки ЖД
-    New-Object psobject -Property @{ letter = [char]'B' ; label =   'PE' ; size = 25GB ; active = $true}  # Active, bootmgr + winPE RAM-disk + wim-files storage
-    
-    New-Object psobject -Property @{ letter = [char]'O' ; label =   'OS' ; size = 75GB ; active = $false}  # for windows
-    
-    New-Object psobject -Property @{ letter = [char]'Q' ; label = 'Data' ; size = 0    ; active = $false}  # for data, will be resized to max
-)
-
-
-$BootStrap = '.IT\PE\BootStrap.csv'
-
-
 function Show-Menu  # отображает меню
 {
 <#
@@ -576,8 +564,3 @@ function Set-NextBoot  # перезагрузка в дефолт-пункт (ч
     
     bcdedit /store $bcd.FullName /bootsequence '{default}' | Out-Null
 }
-
-
-Export-ModuleMember -Function *
-
-Export-ModuleMember -Variable *  # 'volumes', 'BootStrap'
