@@ -29,10 +29,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     if ($STOP) { Write-Host ("    MODE    STOP{0,64}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black }
                     
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
-                    
-                    . "ipconfig"
-                    
+                    Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
                     
                     $ver = if ( $_ -eq 'D7' ) { '7' } else { '10' }  # 7 -> развёртывание Windows 7 install.wim, # 0 -> развёртывание Windows 10 install.wim
                     
@@ -43,24 +40,29 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     $NetConfig = Find-NetConfig  # объект файла сетевого конфига, должен лежать на томе в папке '<буква>:\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C D E etc
                     
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Find-NetConfig BootStrap.csv') #_#
+                    Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Find-NetConfig BootStrap.csv') #_#
                     
                     
                     if ($null -ne $NetConfig)  # поиск wim-файлов в источниках из сетевого конфига ':\.IT\PE\BootStrap.csv'
                     {
                         $shares += $NetConfig | Read-NetConfig
                         
-                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig') #_#
+                        
+                        Write-Host ("{0,5:N1} minutes {1} {2,45}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig', ('IP  ' + (ipconfig | Select-String -Pattern 'ipv4').ToString().Split(':')[1].Trim()) ) #_#
                         
                         
                         $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot'    -SharesList $shares
                         
-                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork PE') #_#
+                        Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork PE') #_#
                         
                         
                         $Sourses += Test-Wim -md5 -ver $ver -name 'install' -SharesList $shares
                         
-                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork OS') #_#
+                        Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim NetWork OS') #_#
+                    }
+                    else
+                    {
+                        Write-Host ("{0,5:N1} minutes {1} {2,45}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig', ('IP  ' + (ipconfig | Select-String -Pattern 'ipv4').ToString().Split(':')[1].Trim()) ) #_#
                     }
                     
                     #endregion
@@ -72,12 +74,12 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot' #-exclude $LettersExclude
                     
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
+                    Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
                     
                     
                     $Sourses += Test-Wim -md5 -ver $ver -name 'install' -exclude $LettersExclude
                     
-                    Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local OS') #_#
+                    Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local OS') #_#
                     
                     $Sourses = $Sourses | Sort-Object -Property `
                                 @{Expression = {$_.OS};       Descending = $true},`
@@ -142,19 +144,19 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         #region Clear-Disk, restore RAM-disk PE from memory, renew boot menu
                         
-                        Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
+                        Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
                         
                         if ( $Disk0isOk )  # remove all (except .IT dir) # overwrite with the latest found win PE boot.wim
                         {
                             Get-Item -Path "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\*" -Exclude '.IT' -Force | Remove-Item -Force -Recurse  # очистка тома 'PE' от старой non-ram PE
                             
-                            Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Mount-Standart') #_#
+                            Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Mount-Standart') #_#
                         }
                         else  # clear disk # make partition
                         {
                             $log['Edit-PartitionTable'] = Edit-PartitionTable
                             
-                            Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Edit-PartitionTable') #_#
+                            Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Edit-PartitionTable') #_#
                         }
                         
                         
@@ -163,7 +165,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                         {
                             $log['Install-Wim PE'] = (Install-Wim -ver 'PE')
                             
-                            Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim PE', $log['Install-Wim PE']) #_#
+                            Write-Host ("{0,5:N1} minutes {1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim PE', $log['Install-Wim PE']) #_#
                         }
                         else { $log['restore RAM-disk from X:'] = $false }  # errors raised during copying - требуется внимание специалиста
                         
@@ -185,13 +187,13 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         $log['Install-Wim OS'] = (Install-Wim -ver $ver <# -wim $wim.FilePath #>)
                         
-                        Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim OS', $log['Install-Wim OS']) #_#
+                        Write-Host ("{0,5:N1} minutes {1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim OS', $log['Install-Wim OS']) #_#
                         
                         #endregion
                     }  # else { return }  # установка невозможна: один или оба источника wim-файлов пустые
                     
                     
-                    Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage reboot', ($log.Values -notcontains $false)) -BackgroundColor Magenta -ForegroundColor Black #_#
+                    Write-Host ("{0,5:N1} minutes {1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage reboot', ($log.Values -notcontains $false)) -BackgroundColor Magenta -ForegroundColor Black #_#
                     
                     
                     # $log['debug'] = $false

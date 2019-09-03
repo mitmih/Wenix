@@ -1,6 +1,8 @@
 $volumes = @(  # схема разбивки ЖД
     New-Object psobject -Property @{ letter = [char]'B' ; label =   'PE' ; size = 25GB ; active = $true}  # Active, bootmgr + winPE RAM-disk + wim-files storage
+    
     New-Object psobject -Property @{ letter = [char]'O' ; label =   'OS' ; size = 75GB ; active = $false}  # for windows
+    
     New-Object psobject -Property @{ letter = [char]'Q' ; label = 'Data' ; size = 0    ; active = $false}  # for data, will be resized to max
 )
 
@@ -194,7 +196,7 @@ function Read-NetConfig  # читает конфиг сетевых источн
                     }
                     catch  # [System.ComponentModel.Win32Exception]
                     {
-                        "$($v.netpath) does NOT EXIST" | Out-Default
+                        # "$($v.netpath) does NOT EXIST" | Out-Default
                     }
                     
                     if ([System.IO.Directory]::Exists($v.netpath))
@@ -375,7 +377,7 @@ function Test-Wim  # ищет / проверяет / возвращает про
             }
             
             
-            if ($CheckListWim.Values -contains $true) { Write-Host ("    OK          {0,-64}" -f $v.FilePath) -BackgroundColor DarkGreen } # вывод в консоль успешных проверок
+            if ($CheckListWim.Values -contains $true) { Write-Host ("    OK        {0,-66}" -f $v.FilePath) -BackgroundColor DarkGreen } # вывод в консоль успешных проверок
             
             
             $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # список проверенных источников файлов
@@ -449,10 +451,10 @@ function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> н
                 
                 
                 # make RAM Disk object
-                bcdedit /create '{ramdiskoptions}' /d 'Windows PE, RAM DISK BOOT' | Out-Null
+                bcdedit /create '{ramdiskoptions}' /d 'Windows PE RAM Disk' | Out-Null
                 bcdedit /set    '{ramdiskoptions}' ramdisksdidevice "partition=$PEletter" | Out-Null
                 bcdedit /set    '{ramdiskoptions}' ramdisksdipath '\.IT\PE\boot.sdi' | Out-Null
-                (bcdedit /create /d "Windows PE, RAM DISK LOADER" /application osloader) -match '\{.*\}' | Out-Null  # "The entry '{e1679017-bc5a-11e9-89cf-a91b7c7227b0}' was successfully created."
+                (bcdedit /create /d "Windows PE RAM Disk" /application osloader) -match '\{.*\}' | Out-Null  # "The entry '{e1679017-bc5a-11e9-89cf-a91b7c7227b0}' was successfully created."
                 $guid = $Matches[0]
                 
                 # make OS loader object
@@ -528,7 +530,7 @@ function Copy-WithCheck  # копирует из папки в папку с п�
     {
         $res = $res -notcontains $false
     
-        Write-Host ( '{0,-5}copy to {1,-12}from {2,24} {3,24}' -f $(if ($res) {'OK'} else {'FAIL'}), $to, $from, '' ) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
+        Write-Host ( '    {0,-4} copy {1,-40} >>> {2,21}' -f $(if ($res) {'OK'} else {'FAIL'}), $from, $to) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
     }
     
     return $res
@@ -551,7 +553,11 @@ function Reset-OpticalDrive  # отключение виртуального п�
         $ComRecorder.CloseTray()
     }
     
-    catch { $_ | Out-Default }
+    catch
+    {
+        # $_ | Out-Default
+        $_ | Out-Null
+    }
     
     return $null
 }
