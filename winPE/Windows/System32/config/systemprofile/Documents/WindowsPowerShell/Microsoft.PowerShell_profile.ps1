@@ -29,12 +29,12 @@ Set-PSReadlineKeyHandler -Chord Ctrl+d -Function DeleteCharOrExit  # выход 
 Set-PSReadlineKeyHandler -Chord Ctrl+f -ScriptBlock {  # запуск Far
     $d = "$env:SystemDrive"
     
-    if (Test-Path -Path "$env:SystemDrive\Debug-Mount_Z.cmd")
-    {
-        . "$env:SystemDrive\Debug-Mount_Z.cmd"
+    # if (Test-Path -Path "$env:SystemDrive\Debug-Mount_Z.cmd")
+    # {
+    #     . "$env:SystemDrive\Debug-Mount_Z.cmd"
         
-        if (Test-Path -Path 'Z:\') { $d = 'Z:' }
-    }
+    #     if (Test-Path -Path 'Z:\') { $d = 'Z:' }
+    # }
     
     Start-Process -FilePath "$env:SystemDrive\Far\Far.exe" -ArgumentList "$d $env:WinDir\System32\config\systemprofile\Documents\WindowsPowerShell\Modules\"
 }
@@ -89,12 +89,18 @@ Get-PSDrive -PSProvider FileSystem | Select-Object Name, Root, Description, Free
 
 # Write-Host -ForegroundColor Red     "Alt + Ctrl + i to capture $inp to $out$wimFile AND SHUTDOWN"
 
+Start-Process -FilePath "$env:SystemRoot\System32\startnet.cmd"
+
 Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
+
+# Start-Process -FilePath "$env:SystemDrive\UltraVNC\winvnc.exe"
+# Start-Process -FilePath 'wpeutil' -ArgumentList 'InitializeNetwork', '/NoWait'
+# Start-Process -FilePath 'wpeutil' -ArgumentList 'DisableFirewall'
 
 
 
 # запуск меню
 
 Import-Module -Force Wenix
-
+Get-Module Wenix
 Use-Wenix
