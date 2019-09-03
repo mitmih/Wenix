@@ -150,7 +150,7 @@ function Read-NetConfig  # читает конфиг сетевых источн
         
         $GWs = @()  # список ip-адресов шлюзов
         
-        # Start-Process -Wait -FilePath 'wpeutil' -ArgumentList 'WaitForNetwork'  # ожидание инициализации сети
+        Start-Process -Wait -FilePath 'wpeutil' -ArgumentList 'WaitForNetwork'  # ожидание инициализации сети
         
         foreach ($item in (ipconfig | Select-String -Pattern 'ipv4' -Context 0,2))
         {
@@ -225,13 +225,29 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
     {
         foreach ($v in $volumes)
         {
-            $CheckList[$v.label] = (Get-Partition -DiskNumber $pos -ErrorAction Stop | Get-Volume).FileSystemLabel -icontains $v.label
+            try
+            {
+                $CheckList[$v.label] = (Get-Partition -DiskNumber $pos -ErrorAction Stop | Get-Volume).FileSystemLabel -icontains $v.label
+            }
+            
+            catch
+            {
+                $CheckList[$v.label] = $false
+            }
         }
         
         
-        $CheckList['partition count']= (Get-Partition -DiskNumber $pos).Length -eq $volumes.Count
+        try
+        {
+            $CheckList['partition count']= (Get-Partition -DiskNumber $pos).Length -eq $volumes.Count
+            
+            $CheckList['partition table']= (Get-Disk -Number $pos).PartitionStyle -match 'MBR'
+        }
         
-        $CheckList['partition table']= (Get-Disk -Number $pos).PartitionStyle -match 'MBR'
+        catch
+        {
+            $CheckList['DiskNotEmpty'] = $false
+        }
     }
     
     end
@@ -538,4 +554,28 @@ function Reset-OpticalDrive  # отключение виртуального п�
     catch { $_ | Out-Default }
     
     return $null
+}
+
+
+function Set-NextBoot  # перезагрузка в дефолт-пункт (чтобы не ловить момент когда нужно установочную флешку отключить, а иначе она снова грузится)
+{
+    param ()
+    
+    
+    foreach ($v in (Get-Partition -DiskNumber 0 | Where-Object {$_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
+    {
+        $p = $v.DriveLetter + ':\Boot\BCD'
+        
+        if (Test-Path -Path $p)
+        {
+            $bcd = Get-Item -Force -Path $p
+            
+            break
+        }
+    }
+    
+    # bcdedit /set '{fwbootmgr}' bootsequence '{<uniq_guid>}' /addfirst
+    # bcdedit /bootsequence '{<uniq_guid>}'
+    
+    bcdedit /store $bcd.FullName /bootsequence '{default}' | Out-Null
 }

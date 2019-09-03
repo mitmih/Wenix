@@ -31,6 +31,9 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     Write-Host ("{0:N0} minutes`t{1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
                     
+                    . "ipconfig"
+                    
+                    
                     $ver = if ( $_ -eq 'D7' ) { '7' } else { '10' }  # 7 -> развёртывание Windows 7 install.wim, # 0 -> развёртывание Windows 10 install.wim
                     
                     $Disk0isOk = Test-Disk
@@ -118,14 +121,13 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         foreach ( $wim in ($Sourses | Where-Object {$_.OS -eq 'PE'}) )
                         {
-                            # $copy = if ($null -eq $wim.user) { Copy-WithCheck -from $wim.Root -to 'X:\.IT\PE' } else { Copy-WithCheck -from $wim.Root -to 'X:\.IT\PE' -net $wim }
                             $copy = Copy-WithCheck -from $wim.Root -to 'X:\.IT\PE'
                             
                             $log['backup ramdisk in memory'] = $copy
                             
                             if ( $copy )
                             {
-                                Copy-Item -Force -Path $NetConfig -Destination 'X:\.IT\PE'
+                                if ( $NetConfig ) { Copy-Item -Force -Path $NetConfig -Destination 'X:\.IT\PE' }
                                 
                                 break
                             }
@@ -174,7 +176,6 @@ function Use-Wenix  # главный поток исполнения скрип�
                         {
                             $to = "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver"
                             
-                            # $copy = if ($null -eq $wim.user) { Copy-WithCheck -from $wim.Root -to $to } else { Copy-WithCheck -from $wim.Root -to $to -net $wim }
                             $copy = Copy-WithCheck -from $wim.Root -to $to
                             
                             $log['backup ramdisk in memory'] = $copy
@@ -192,7 +193,6 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     Write-Host ("{0:N0} minutes`t{1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage reboot', ($log.Values -notcontains $false)) -BackgroundColor Magenta -ForegroundColor Black #_#
                     
-                    Start-Sleep -Seconds 3
                     
                     # $log['debug'] = $false
                     if ($log.Values -notcontains $false)
@@ -200,6 +200,10 @@ function Use-Wenix  # главный поток исполнения скрип�
                         $cycle = $false
                         
                         Reset-OpticalDrive  # демонтаж iso-образа winPE виртуальной
+                        
+                        Set-NextBoot
+                        
+                        Start-Sleep -Seconds 3
                         
                         Restart-Computer -Force
                     }
