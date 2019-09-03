@@ -32,7 +32,7 @@ REM make ramdisk object
     
     REM "Windows PreInstallation Environment, RAM DISK BOOT"
     
-    bcdedit /create {ramdiskoptions} /d "Windows PE, RAM DISK BOOT"
+    bcdedit /create {ramdiskoptions} /d "Windows PE RAM Disk"
     
     bcdedit /set    {ramdiskoptions} ramdisksdidevice partition=%~d0
     
@@ -41,7 +41,7 @@ REM make ramdisk object
 
 REM make a new GUID for the boot loader entry
     
-    for /f "usebackq tokens=1-5 delims={}" %%a in (`bcdedit /create /d "Windows PE RAMDisk entry" /application osloader`) do (set GUID={%%b})
+    for /f "usebackq tokens=1-5 delims={}" %%a in (`bcdedit /create /d "Windows PE RAM Disk" /application osloader`) do (set GUID={%%b})
     
     REM Запись {e1679014-bc5a-11e9-89cf-a91b7c7227b0} успешно создана.
     REM                     or
