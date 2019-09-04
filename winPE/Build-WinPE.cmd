@@ -219,6 +219,11 @@ REM make iso-file
         
         mklink /h "%wd%\%arc%\media\.IT\PE\Add-2nd_boot_entry.cmd"  "%wd%\..\..\scripts_helpers\Add-WinPE_RAMDisk_to_boot_menu_from_WINDOWS.cmd"
         
+        mklink /h "%wd%\%arc%\media\.IT\PE\BootStrap.csv"           "%wd%\..\BootStrap.csv"
+        
+        rd /s /q "%wd%\%arc%\media\ru-ru"
+        rd /s /q "%wd%\%arc%\media\boot\ru-ru"
+        
         rd /s /q "%wd%\%arc%\media\bg-bg"
         rd /s /q "%wd%\%arc%\media\cs-cz"
         rd /s /q "%wd%\%arc%\media\da-dk"
@@ -287,7 +292,7 @@ REM make iso-file
         rd /s /q "%wd%\%arc%\media\boot\zh-cn"
         rd /s /q "%wd%\%arc%\media\boot\zh-tw"
         
-        "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0Win10PE_x64_LTI_1_SINGLE.iso"
+        "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0WinPE_10_x64_LTI.iso"
     
     ) else ( pause )
 
@@ -357,6 +362,6 @@ REM make 2nd iso
         REM mklink /h "%wd%\%arc%\media\.IT\7\install.wim.md5"  "%wd%\..\..\..\..\..\..\_iso\7_mod\iso\sources\install.wim.md5"
         
         
-        REM "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0Win10PE_x64_LTI_10.iso"
+        REM "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0UNIVERSAL.iso"
     
     ) else ( pause )

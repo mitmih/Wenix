@@ -102,5 +102,4 @@ Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
 # запуск меню
 
 Import-Module -Force Wenix
-Get-Module Wenix
 Use-Wenix

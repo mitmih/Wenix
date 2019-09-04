@@ -27,7 +27,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                 {
                     Write-Host ("  <<<     selected{0,62}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black
                     
-                    if ($STOP) { Write-Host ("    MODE    STOP{0,64}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black }
+                    if ($STOP) { Write-Host ("    MODE    STOP{0,65}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black }
                     
                     Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
                     
@@ -70,7 +70,22 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     #region локальные источники
                     
-                    $LettersExclude = if ($Disk0isOk) { @() } else { (Get-Partition -DiskNumber 0 | Where-Object {'' -ne $_.DriveLetter}).DriveLetter }  # источники с этого диска бесполезны, т.к. ему нужна переразбивка
+                    if ($Disk0isOk)  # источники с этого диска бесполезны, т.к. ему нужна переразбивка
+                    {
+                        $LettersExclude = @()  # буквы дисков, на которых ненужно искать wim-файлы
+                    }
+                    else
+                    {
+                        try
+                        {
+                            $LettersExclude = (Get-Partition -ErrorAction Stop -DiskNumber 0 | Where-Object {'' -ne $_.DriveLetter}).DriveLetter
+                        }
+                        catch
+                        {
+                            $LettersExclude = @()
+                        }
+                    }
+                    
                     
                     $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot' #-exclude $LettersExclude
                     
@@ -230,4 +245,4 @@ function Use-Wenix  # главный поток исполнения скрип�
 }
 
 
-Export-ModuleMember -Variable *  # 'volumes', 'BootStrap'
+Export-ModuleMember -Function * -Variable *  # 'volumes', 'BootStrap'

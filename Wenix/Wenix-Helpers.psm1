@@ -212,7 +212,7 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
         {
             try
             {
-                $CheckList[$v.label] = (Get-Partition -DiskNumber $pos -ErrorAction Stop | Get-Volume).FileSystemLabel -icontains $v.label
+                $CheckList[$v.label] = (Get-Partition -ErrorAction Stop -DiskNumber $pos | Get-Volume).FileSystemLabel -icontains $v.label
             }
             
             catch
@@ -224,14 +224,14 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
         
         try
         {
-            $CheckList['partition count']= (Get-Partition -DiskNumber $pos).Length -eq $volumes.Count
+            $CheckList['partition count']= (Get-Partition -ErrorAction Stop -DiskNumber $pos).Length -eq $volumes.Count
             
-            $CheckList['partition table']= (Get-Disk -Number $pos).PartitionStyle -match 'MBR'
+            $CheckList['partition table']= (Get-Disk -ErrorAction Stop -Number $pos).PartitionStyle -match 'MBR'
         }
         
         catch
         {
-            $CheckList['DiskNotEmpty'] = $false
+            $CheckList['Disk has been Initialized'] = $false
         }
     }
     
@@ -382,9 +382,19 @@ function Edit-PartitionTable  # очищает диск полностью и п
     {
         try
         {
-            Clear-Disk -Number $pos -RemoveData -RemoveOEM -Confirm:$false
+            if ('RAW' -eq (Get-Disk -Number 0).PartitionStyle)
+            # чистый диск - нужно инициализировать
+            {
+                Initialize-Disk -Number $pos -PartitionStyle MBR
+            }
+            else
+            # диск размечен
+            {
+                Clear-Disk -Number $pos -RemoveData -RemoveOEM -Confirm:$false
+                
+                Initialize-Disk -Number $pos -PartitionStyle MBR
+            }
             
-            Initialize-Disk -Number $pos -PartitionStyle MBR
             
             foreach ($v in $volumes)
             {
