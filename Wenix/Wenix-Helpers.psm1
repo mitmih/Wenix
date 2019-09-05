@@ -574,3 +574,38 @@ function Set-NextBoot  # перезагрузка в дефолт-пункт (ч
     
     bcdedit /store $bcd.FullName /bootsequence '{default}' | Out-Null
 }
+
+
+function Add-Junctions  # junction-ссылки на папки .IT и .OBMEN c загрузочного раздела
+{
+    param ()
+    
+    
+    try
+    {
+        $guidOS = (Get-Volume -FileSystemLabel 'OS').Path
+                        
+        $guidPE = (Get-Volume -FileSystemLabel 'PE').Path
+        
+        
+        if (Test-Path -Path ($guidOS + '.IT')) { Remove-Item -Recurse -Force -Path ($guidOS + '.IT') }
+        
+        if (Test-Path -Path ($guidPE + '.IT'))  # создаёт junction-ссылку на '.IT' с загрузочного раздела на разделе с ОС, используя UNC пути
+        {
+            Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($guidOS + '.IT'), ($guidPE + '.IT')
+        }
+        
+        
+        if (Test-Path -Path ($guidOS + '.OBMEN')) { Remove-Item -Recurse -Force -Path ($guidOS + '.OBMEN') }
+        
+        if (Test-Path -Path ($guidPE + '.OBMEN'))  # создаёт junction-ссылку на '.OBMEN' с загрузочного раздела на разделе с ОС, используя UNC пути
+        {
+            Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($guidOS + '.OBMEN'), ($guidPE + '.OBMEN')
+        }
+    }
+    
+    catch { $_ }
+    
+    
+    return $res
+}

@@ -163,7 +163,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         if ( $Disk0isOk )  # remove all (except .IT dir) # overwrite with the latest found win PE boot.wim
                         {
-                            Get-Item -Path "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\*" -Exclude '.IT' -Force | Remove-Item -Force -Recurse  # очистка тома 'PE' от старой non-ram PE
+                            Get-Item -Path "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\*" -Exclude '.IT', '.OBMEN' -Force | Remove-Item -Force -Recurse  # очистка тома 'PE' от старой non-ram PE
                             
                             Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Mount-Standart') #_#
                         }
@@ -181,6 +181,11 @@ function Use-Wenix  # главный поток исполнения скрип�
                             $log['Install-Wim PE'] = (Install-Wim -ver 'PE')
                             
                             Write-Host ("{0,5:N1} minutes {1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim PE', $log['Install-Wim PE']) #_#
+                            
+                            if ( !(Test-Path -Path ( (Get-Volume -FileSystemLabel 'PE').DriveLetter + ':\.OBMEN' )) )
+                            {
+                                New-Item -ItemType Directory -Path ( (Get-Volume -FileSystemLabel 'PE').DriveLetter + ':\.OBMEN' )
+                            }
                         }
                         else { $log['restore RAM-disk from X:'] = $false }  # errors raised during copying - требуется внимание специалиста
                         
@@ -214,11 +219,13 @@ function Use-Wenix  # главный поток исполнения скрип�
                     # $log['debug'] = $false  # for debug
                     if ($log.Values -notcontains $false)
                     {
-                        $cycle = $false
+                        $cycle = $false  # прервать показ меню
                         
-                        Reset-OpticalDrive  # демонтаж iso-образа winPE виртуальной
+                        Reset-OpticalDrive  # демонтаж iso-образа winPE виртуальной машины
                         
-                        Set-NextBoot
+                        Set-NextBoot  # принудительно загрузиться в свежую ОС - ускоряет процесс установки
+                        
+                        Add-Junctions  # junction-ссылки на папки .IT и .OBMEN
                         
                         Start-Sleep -Seconds 3
                         
