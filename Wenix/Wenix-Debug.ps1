@@ -1,5 +1,5 @@
 Clear-Host
-Import-Module -Force -Verbose 'd:\alt-air\dev\github\Wenix\Wenix'
+Import-Module -Force -Verbose 
 Get-Module -Name Wenix
 
 
@@ -28,12 +28,11 @@ Get-Module -Name Wenix
 
 # Use-Wenix -STOP
 
-$bytes = [System.Text.Encoding]::Unicode.GetBytes( (Get-Command Show-Menu).Definition )
+$command = (Get-Command Add-Junctions).Definition
+$bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
 $encodedCommand = [Convert]::ToBase64String($bytes)
 
 $AutoRun = (Get-Volume -FileSystemLabel 'OS').DriveLetter + ':\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd'
 
-'chcp 1251 && echo off' | Out-File -Encoding ascii -FilePath $AutoRun
-'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -encodedCommand {0}' -f $encodedCommand | Out-File -Encoding ascii -FilePath $AutoRun -Append
-'timeout /t 13' | Out-File -Encoding ascii -FilePath $AutoRun -Append
-'erase /f /q "%~dpnx0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+'chcp 65001 && echo off' | Out-File -Encoding unicode -FilePath $AutoRun
+'powershell.exe -encodedCommand {0}' -f $encodedCommand | Out-File -Encoding unicode -FilePath $AutoRun -Append
