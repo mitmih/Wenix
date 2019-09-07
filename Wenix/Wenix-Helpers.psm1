@@ -583,15 +583,19 @@ function Add-Junctions  # алгоритм вычисления guid в 10й PE 
     
     try
     {
+        # Get-Volume (и модуль Storage в целом) не работает в 7-ке, т.к. WMI не поддерживает нужные классы
+        # поэтому, т.к. эта же функция используется в 7-ке через cmd-костыль, она реализована через Get-CimInstance
+        # в кастомном install.wim установлен 5.1 PowerShell
         $guidOS = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq 'OS'}).DeviceID
         
         $guidPE = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq 'PE'}).DeviceID
         
         
-        if (Test-Path -Path ($guidOS + '.IT')) { Remove-Item -Recurse -Force -Path ($guidOS + '.IT') }  # наличие папки помешает сделать ссылку
+        if (Test-Path -Path ($guidOS + '.IT')) { Remove-Item -Recurse -Force -Path ($guidOS + '.IT') }  # существующая (напр. развёрнута из wim-файла) папка помешает сделать ссылку
         
-        if (Test-Path -Path ($guidPE + '.IT'))  # junction-ссылка в разделе с ОС на '.IT' загрузочного раздела, в форматах UNC путей
+        if (Test-Path -Path ($guidPE + '.IT'))
         {
+            # junction-ссылка с ОС-тома ведёт на '.IT' загрузочного раздела, пути в формате UNC
             Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($guidOS + '.IT'), ($guidPE + '.IT')
         }
         
@@ -628,7 +632,7 @@ function Add-Junctions7  # в Windows 7 алгоритм назначения gu
     
     'echo Add-Junctions' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
-    # 'echo %~dpnx0' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    'echo %~dpnx0' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
     # 'start "" /b explorer.exe "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     

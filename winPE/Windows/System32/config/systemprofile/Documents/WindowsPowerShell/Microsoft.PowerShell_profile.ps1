@@ -121,7 +121,7 @@ function Update-Wenix  # поиск и импорт более свежей ве
         Copy-Item -Recurse -Force -Path ($FindedModules.Path | Split-Path -Parent) -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
     }
     
-    Get-Module -Name 'Wenix' | Remove-Module -Force
+    # Get-Module -Name 'Wenix' | Remove-Module -Force
 }
 
 Update-Wenix
