@@ -77,18 +77,13 @@ Set-Location -Path $env:SystemDrive\  # переход в корень диск�
 
 Get-PSDrive -PSProvider FileSystem | Select-Object Name, Root, Description, Free, Used | Format-Table -AutoSize  # информация о дисках
 
+Start-Process -FilePath "$env:SystemRoot\System32\startnet.cmd"
+
 # Write-Host -ForegroundColor Magenta "      Ctrl + i to capture $inp to $out$wimFile"
 
 # Write-Host -ForegroundColor Red     "Alt + Ctrl + i to capture $inp to $out$wimFile AND SHUTDOWN"
 
-Start-Process -FilePath "$env:SystemRoot\System32\startnet.cmd"
-
 Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
-
-# Start-Process -FilePath "$env:SystemDrive\UltraVNC\winvnc.exe"
-# Start-Process -FilePath 'wpeutil' -ArgumentList 'InitializeNetwork', '/NoWait'
-# Start-Process -FilePath 'wpeutil' -ArgumentList 'DisableFirewall'
-
 
 
 # запуск меню
@@ -112,8 +107,6 @@ function Update-Wenix  # поиск и импорт более свежей ве
     {
         Copy-Item -Recurse -Force -Path ($FindedModules.Path | Split-Path -Parent) -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
     }
-    
-    # Get-Module -Name 'Wenix' | Remove-Module -Force
 }
 
 Update-Wenix

@@ -183,6 +183,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                             Write-Host ("{0,5:N1} minutes {1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim PE', $log['Install-Wim PE']) #_#
                             
                             if ( !(Test-Path -Path ( (Get-Volume -FileSystemLabel 'PE').DriveLetter + ':\.OBMEN' )) )
+                            # сделаем папку обмен, если её ещё нет
                             {
                                 New-Item -ItemType Directory -Path ( (Get-Volume -FileSystemLabel 'PE').DriveLetter + ':\.OBMEN' )
                             }
@@ -221,7 +222,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                     {
                         $cycle = $false  # прервать показ меню
                         
-                        Reset-OpticalDrive  # демонтаж iso-образа winPE виртуальной машины
+                        # Reset-OpticalDrive  # демонтаж iso-образа winPE виртуальной машины
                         
                         Set-NextBoot  # принудительно загрузиться в свежую ОС - ускоряет процесс установки
                         
