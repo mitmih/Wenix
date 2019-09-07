@@ -182,10 +182,10 @@ function Use-Wenix  # главный поток исполнения скрип�
                             
                             Write-Host ("{0,5:N1} minutes {1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim PE', $log['Install-Wim PE']) #_#
                             
-                            # if ( !(Test-Path -Path ( (Get-Volume -FileSystemLabel 'PE').DriveLetter + ':\.OBMEN' )) )
-                            # {
-                            #     New-Item -ItemType Directory -Path ( (Get-Volume -FileSystemLabel 'PE').DriveLetter + ':\.OBMEN' )
-                            # }
+                            if ( !(Test-Path -Path ( (Get-Volume -FileSystemLabel 'PE').DriveLetter + ':\.OBMEN' )) )
+                            {
+                                New-Item -ItemType Directory -Path ( (Get-Volume -FileSystemLabel 'PE').DriveLetter + ':\.OBMEN' )
+                            }
                         }
                         else { $log['restore RAM-disk from X:'] = $false }  # errors raised during copying - требуется внимание специалиста
                         
