@@ -40,14 +40,6 @@ Set-PSReadlineKeyHandler -Chord Ctrl+f -ScriptBlock {  # запуск Far
 }
 
 
-Set-PSReadlineKeyHandler -Chord Ctrl+u -ScriptBlock {  # перезагрузка модуля Wenix
-    Get-Module -Name Wenix | Remove-Module
-    
-    Import-Module -Force Wenix
-    
-    Get-Module -Name Wenix
-}
-
 # Set-PSReadlineKeyHandler -Chord Ctrl+i -ScriptBlock {
 # # захват образа на USB drive
 #     $str = '/Capture-Image /CaptureDir:' + $inp + ' /ImageFile:"' + $out + $wimFile + '" /Name:"' + $wimName + '" /Description:"' + $wimDesc + '"'
