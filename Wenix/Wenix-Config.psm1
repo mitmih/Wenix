@@ -13,5 +13,7 @@ $volumes = @(  # схема разбивки ЖД
 $BootStrap = '.IT\PE\BootStrap.csv'  # NetWork Shares access configuration file
 
 
+$ModulePath = '.IT\PE\Wenix'  # NetWork Shares access configuration file
+
 
 Export-ModuleMember -Variable *  # 'volumes', 'BootStrap'

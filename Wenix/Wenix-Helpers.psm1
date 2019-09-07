@@ -1,3 +1,31 @@
+function Import-UpdatedWenix  # поиск и импорт более свежей версии модуля
+{
+    param ()
+    
+    
+    $FindedModules = @()
+    
+    
+    foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
+    {
+        $w = $v.DriveLetter + ':\' + $ModulePath
+        
+        if (Test-Path -Path $w) { $FindedModules += Get-Module -ListAvailable "$w" }
+    }
+    
+    
+    if ($FindedModules) { $FindedModules = $FindedModules | Sort-Object -Property 'Version' | Select-Object -Last 1 }
+    
+    
+    if ($FindedModules.Version -gt (Get-Module -Name 'Wenix').Version)
+    {
+        if(Get-Module -Name Wenix) { Remove-Module -Name Wenix -Verbose -Force }
+        
+        Import-Module -Name $FindedModules.Path -Verbose -Force
+    }
+}
+
+
 function Show-Menu  # отображает меню
 {
 <#
@@ -583,14 +611,14 @@ function Add-Junctions  # junction-ссылки на папки .IT и .OBMEN c 
     
     try
     {
-        $guidOS = (Get-Volume -FileSystemLabel 'OS').Path
-                        
-        $guidPE = (Get-Volume -FileSystemLabel 'PE').Path
+        $guidOS = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq 'OS'}).DeviceID
+        
+        $guidPE = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq 'PE'}).DeviceID
         
         
-        if (Test-Path -Path ($guidOS + '.IT')) { Remove-Item -Recurse -Force -Path ($guidOS + '.IT') }
+        if (Test-Path -Path ($guidOS + '.IT')) { Remove-Item -Recurse -Force -Path ($guidOS + '.IT') }  # наличие папки помешает сделать ссылку
         
-        if (Test-Path -Path ($guidPE + '.IT'))  # создаёт junction-ссылку на '.IT' с загрузочного раздела на разделе с ОС, используя UNC пути
+        if (Test-Path -Path ($guidPE + '.IT'))  # junction-ссылка в разделе с ОС на '.IT' загрузочного раздела, в форматах UNC путей
         {
             Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($guidOS + '.IT'), ($guidPE + '.IT')
         }
@@ -598,7 +626,7 @@ function Add-Junctions  # junction-ссылки на папки .IT и .OBMEN c 
         
         if (Test-Path -Path ($guidOS + '.OBMEN')) { Remove-Item -Recurse -Force -Path ($guidOS + '.OBMEN') }
         
-        if (Test-Path -Path ($guidPE + '.OBMEN'))  # создаёт junction-ссылку на '.OBMEN' с загрузочного раздела на разделе с ОС, используя UNC пути
+        if (Test-Path -Path ($guidPE + '.OBMEN'))
         {
             Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($guidOS + '.OBMEN'), ($guidPE + '.OBMEN')
         }
@@ -609,3 +637,4 @@ function Add-Junctions  # junction-ссылки на папки .IT и .OBMEN c 
     
     return $res
 }
+
