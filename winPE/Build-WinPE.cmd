@@ -215,7 +215,9 @@ REM make iso-file
     
     if errorlevel 0 (
         
-        if not exist "%wd%\%arc%\media\.IT\PE\" ( mkdir "%wd%\%arc%\media\.IT\PE" )
+        if exist "%wd%\%arc%\media\.IT\PE\" ( rd /s /q "%wd%\%arc%\media\.IT\PE" )
+        
+        mkdir "%wd%\%arc%\media\.IT\PE"
         
         mklink /h "%wd%\%arc%\media\.IT\PE\boot.wim"                "%wd%\%arc%\media\sources\boot.wim"
         
