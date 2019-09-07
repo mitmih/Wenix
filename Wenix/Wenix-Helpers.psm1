@@ -622,7 +622,7 @@ function Add-Junctions7  # в Windows 7 алгоритм назначения gu
     
     $AutoRun = (Get-Volume -FileSystemLabel 'OS').DriveLetter + ':\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd'
     
-    'chcp 1251 && echo off' | Out-File -Encoding ascii -FilePath $AutoRun
+    '@echo off && chcp 1251' | Out-File -Encoding ascii -FilePath $AutoRun
     
     'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -encodedCommand {0}' -f $encodedCommand | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
