@@ -6,7 +6,7 @@ REM cd "%~dp0"
 
 
 REM чтобы начать "с чистого листа", нужно запустить скрипт с параметром clear
-REM     Make-Wim.cmd clear
+REM     Build-WinPE.cmd clear
 
 
 
@@ -42,6 +42,9 @@ REM установка переменных среды исполнения
 
 
 REM очистка на случай если остались какие-то ранее смонтированные образы
+    
+    if /i "%1"=="iso" ( goto GOTO_ISO )
+    
     
     dism /Cleanup-Wim
     
@@ -203,6 +206,9 @@ REM compress and calculate MD5
         
     ) else ( pause )
 
+
+:GOTO_ISO
+
 REM echo before ISO making... && pause >nul
 
 REM make iso-file
@@ -220,6 +226,9 @@ REM make iso-file
         mklink /h "%wd%\%arc%\media\.IT\PE\Add-2nd_boot_entry.cmd"  "%wd%\..\..\scripts_helpers\Add-WinPE_RAMDisk_to_boot_menu_from_WINDOWS.cmd"
         
         mklink /h "%wd%\%arc%\media\.IT\PE\BootStrap.csv"           "%wd%\..\BootStrap.csv"
+        
+        mklink /J "%wd%\%arc%\media\.IT\PE\Wenix"                   "%wd%\..\..\Wenix"
+        
         
         rd /s /q "%wd%\%arc%\media\ru-ru"
         rd /s /q "%wd%\%arc%\media\boot\ru-ru"
@@ -338,7 +347,6 @@ REM         powershell -command "& {%~dp0Make-Wim_md5.ps1}"
 REM         del "%wd%\amd64\media\sources\boot0.wim" /F /Q
         
 REM         ) else ( pause )
-
 
 
 REM make 2nd iso
