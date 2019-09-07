@@ -1,33 +1,3 @@
-function Import-UpdatedWenix  # поиск и импорт более свежей версии модуля
-{
-    param ()
-    
-    
-    $FindedModules = @()
-    
-    
-    foreach ($v in (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
-    {
-        $w = $v.DriveLetter + '\' + $ModulePath
-        
-        if (Test-Path -Path $w) { $FindedModules += Get-Module -ListAvailable "$w" }
-    }
-    
-    
-    if ($FindedModules) { $FindedModules = $FindedModules | Sort-Object -Property 'Version' | Select-Object -Last 1 }
-    
-    
-    if ($FindedModules.Version -gt (Get-Module -Name 'Wenix').Version)
-    {
-        Copy-Item -Recurse -Force -Path $FindedModules.Path -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
-        
-        if(Get-Module -Name Wenix) { Remove-Module -Force -Name Wenix <# -Verbose #> }
-        
-        Import-Module -Name $FindedModules.Path -Force -Verbose
-    }
-}
-
-
 function Show-Menu  # отображает меню
 {
 <#
@@ -606,7 +576,7 @@ function Set-NextBoot  # перезагрузка в дефолт-пункт (ч
 }
 
 
-function Add-Junctions  # junction-ссылки на папки .IT и .OBMEN c загрузочного раздела
+function Add-Junctions  # алгоритм вычисления guid в 10й PE и в Windows 10 одинаковый - ссылки через UNC-пути сделанные из PE будут работать и в основной ОС
 {
     param ()
     
@@ -641,7 +611,7 @@ function Add-Junctions  # junction-ссылки на папки .IT и .OBMEN c 
 }
 
 
-function Add-JunctionsCMD
+function Add-JunctionsCMD  # в Windows 7 алгоритм назначения guid`ов томам отличается от winPE 10, поэтому ссылки нужно делать делать уже загрузившись в основную ОС
 {
     param ()
     
@@ -658,11 +628,11 @@ function Add-JunctionsCMD
     
     'echo Add-Junctions' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
-    'echo %~dpnx0' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    # 'echo %~dpnx0' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
-    'start "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    # 'start "" /b explorer.exe "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
-    'timeout /t 13' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    'timeout /t 2' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
     'erase /f /q "%~dpnx0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
 }

@@ -100,6 +100,36 @@ Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
 
 
 # запуск меню
+function Update-Wenix  # поиск и импорт более свежей версии модуля
+{
+    param ()
+    
+    
+    $FindedModules = @()
+    
+    
+    foreach ($v in (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
+    {
+        $w = $v.DriveLetter + '\' + $ModulePath
+        
+        if (Test-Path -Path $w) { $FindedModules += Get-Module -ListAvailable "$w" }
+    }
+    
+    
+    if ($FindedModules) { $FindedModules = $FindedModules | Sort-Object -Property 'Version' | Select-Object -Last 1 }
+    
+    
+    if ($FindedModules.Version -gt (Get-Module -Name 'Wenix').Version)
+    {
+        Copy-Item -Recurse -Force -Path ($FindedModules.Path | Split-Path -Parent) -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
+        
+        # if(Get-Module -Name Wenix) { Remove-Module -Force -Name Wenix <# -Verbose #> }
+        
+        # Import-Module -Name $FindedModules.Path -Force <# -Verbose #>
+    }
+}
+
+Update-Wenix
 
 Import-Module -Force Wenix
 Use-Wenix
