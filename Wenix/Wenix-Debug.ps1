@@ -1,8 +1,7 @@
-Import-Module -Force Wenix
+Clear-Host
+Import-Module -Force -Verbose 'd:\alt-air\dev\github\Wenix\Wenix'
 Get-Module -Name Wenix
 
-
-Import-UpdatedWenix
 
 # $NetConfig = Find-NetConfig
 
@@ -28,3 +27,13 @@ Import-UpdatedWenix
 
 
 # Use-Wenix -STOP
+
+$bytes = [System.Text.Encoding]::Unicode.GetBytes( (Get-Command Show-Menu).Definition )
+$encodedCommand = [Convert]::ToBase64String($bytes)
+
+$AutoRun = (Get-Volume -FileSystemLabel 'OS').DriveLetter + ':\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd'
+
+'chcp 1251 && echo off' | Out-File -Encoding ascii -FilePath $AutoRun
+'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -encodedCommand {0}' -f $encodedCommand | Out-File -Encoding ascii -FilePath $AutoRun -Append
+'timeout /t 13' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+'erase /f /q "%~dpnx0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
