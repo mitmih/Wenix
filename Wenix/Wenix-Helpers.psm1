@@ -8,7 +8,7 @@ function Import-UpdatedWenix  # поиск и импорт более свеже
     
     foreach ($v in (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
     {
-        $w = $v.DriveLetter + ':\' + $ModulePath
+        $w = $v.DriveLetter + '\' + $ModulePath
         
         if (Test-Path -Path $w) { $FindedModules += Get-Module -ListAvailable "$w" }
     }
@@ -19,9 +19,11 @@ function Import-UpdatedWenix  # поиск и импорт более свеже
     
     if ($FindedModules.Version -gt (Get-Module -Name 'Wenix').Version)
     {
-        if(Get-Module -Name Wenix) { Remove-Module -Name Wenix <# -Verbose #> -Force }
+        Copy-Item -Recurse -Force -Path $FindedModules.Path -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
         
-        Import-Module -Name $FindedModules.Path <# -Verbose #> -Force
+        if(Get-Module -Name Wenix) { Remove-Module -Force -Name Wenix <# -Verbose #> }
+        
+        Import-Module -Name $FindedModules.Path -Force -Verbose
     }
 }
 
@@ -639,29 +641,28 @@ function Add-Junctions  # junction-ссылки на папки .IT и .OBMEN c 
 }
 
 
-function Add-JunctionsMeta
+function Add-JunctionsCMD
 {
-    param ($ver = $null)
+    param ()
     
     
-    if($ver -eq '10')
-    {
-        Add-Junctions
-    }
-    elseif($ver -eq '7')
-    {
-        $bytes = [System.Text.Encoding]::Unicode.GetBytes( (Get-Command Add-Junctions).Definition )
-        
-        $encodedCommand = [Convert]::ToBase64String($bytes)
-
-        $AutoRun = (Get-Volume -FileSystemLabel 'OS').DriveLetter + ':\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd'
-
-        'chcp 1251 && echo off' | Out-File -Encoding ascii -FilePath $AutoRun
-        
-        'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -encodedCommand {0}' -f $encodedCommand | Out-File -Encoding ascii -FilePath $AutoRun -Append
-        
-        'timeout /t 13' | Out-File -Encoding ascii -FilePath $AutoRun -Append
-        
-        'erase /f /q "%~dpnx0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
-    }
+    $bytes = [System.Text.Encoding]::Unicode.GetBytes( (Get-Command Add-Junctions).Definition )
+    
+    $encodedCommand = [Convert]::ToBase64String($bytes)
+    
+    $AutoRun = (Get-Volume -FileSystemLabel 'OS').DriveLetter + ':\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd'
+    
+    'chcp 1251 && echo off' | Out-File -Encoding ascii -FilePath $AutoRun
+    
+    'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -encodedCommand {0}' -f $encodedCommand | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    
+    'echo Add-Junctions' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    
+    'echo %~dpnx0' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    
+    'start "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    
+    'timeout /t 13' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    
+    'erase /f /q "%~dpnx0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
 }
