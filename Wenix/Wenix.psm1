@@ -241,8 +241,6 @@ function Use-Wenix  # главный поток исполнения скрип�
                     else { return }  # ок -> перезагрузка, иначе - отладка
                 }
                 
-                # 'J'
-                # { Add-JunctionsCMD }
                 
                 'Escape'
                 {
@@ -251,7 +249,9 @@ function Use-Wenix  # главный поток исполнения скрип�
                     if (([console]::ReadKey()).key -eq 'Y') { $cycle = $false; Restart-Computer -Force }
                 }
                 
+                
                 'Backspace' { return }
+                
                 
                 Default { break }
             }
