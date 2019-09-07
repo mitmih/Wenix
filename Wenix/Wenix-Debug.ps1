@@ -1,5 +1,5 @@
 Clear-Host
-Import-Module -Force -Verbose 
+Import-Module -Force -Verbose
 Get-Module -Name Wenix
 
 
