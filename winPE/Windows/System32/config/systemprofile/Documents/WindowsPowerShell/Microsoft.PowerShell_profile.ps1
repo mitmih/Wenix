@@ -105,6 +105,8 @@ function Update-Wenix  # поиск и импорт более свежей ве
     param ()
     
     
+    Import-Module -Force Wenix -Variable 'ModulePath'
+    
     $FindedModules = @()
     
     foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
@@ -118,9 +120,12 @@ function Update-Wenix  # поиск и импорт более свежей ве
     {
         Copy-Item -Recurse -Force -Path ($FindedModules.Path | Split-Path -Parent) -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
     }
+    
+    Get-Module -Name 'Wenix' | Remove-Module -Force
 }
 
 Update-Wenix
+
 
 Import-Module -Force Wenix
 Use-Wenix
