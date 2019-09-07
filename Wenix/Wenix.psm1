@@ -230,15 +230,19 @@ function Use-Wenix  # главный поток исполнения скрип�
                         # junction-ссылки на папки .IT и .OBMEN
                         # т.к. алгоритм вычисления guid в 10й PE и в Windows 10 одинаковый, то ссылки по UNC-путям сделанные из PE будут работать после установки ОС
                         # в Windows 7 guid`ы формируются по-другому, поэтому ссылки можно сделать, только загрузившись в ОС
-                        if ($ver -eq '10') { Add-JunctionsMeta -ver '10' }
-                        else { Add-JunctionsMeta -ver '7' }
+                        if ($ver -eq '10') { Add-Junctions } elseif ($ver -eq '7' ) { Add-JunctionsCMD }
                         
-                        Start-Sleep -Seconds 3
+                        Write-Host ('|=> {0:-2} <=|' -f $ver)
+                        
+                        Start-Sleep -Seconds 13
                         
                         Restart-Computer -Force
                     }
                     else { return }  # ок -> перезагрузка, иначе - отладка
                 }
+                
+                # 'J'
+                # { Add-JunctionsCMD }
                 
                 'Escape'
                 {
