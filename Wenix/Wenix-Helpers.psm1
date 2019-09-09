@@ -1,13 +1,3 @@
-$volumes = @(  # схема разбивки ЖД
-    New-Object psobject -Property @{ letter = [char]'B' ; label =   'PE' ; size = 25GB ; active = $true}  # Active, bootmgr + winPE RAM-disk + wim-files storage
-    New-Object psobject -Property @{ letter = [char]'O' ; label =   'OS' ; size = 75GB ; active = $false}  # for windows
-    New-Object psobject -Property @{ letter = [char]'Q' ; label = 'Data' ; size = 0    ; active = $false}  # for data, will be resized to max
-)
-
-
-$BootStrap = '.IT\PE\BootStrap.csv'
-
-
 function Show-Menu  # отображает меню
 {
 <#
@@ -67,7 +57,7 @@ function Find-NetConfig  # ищет на локальных разделах с�
     param ()
     
     
-    begin { $res = $null }
+    begin { $res = @() }
     
     process
     {
@@ -75,16 +65,11 @@ function Find-NetConfig  # ищет на локальных разделах с�
         {
             $p = $v.DriveLetter + ':\' + $BootStrap
             
-            if (Test-Path -Path $p)
-            {
-                $res = Get-Item -Path $p
-                
-                break
-            }
+            if (Test-Path -Path $p) { $res += Get-Item -Path $p }
         }
     }
     
-    end { return $res }
+    end { return ($res | Sort-Object -Property 'LastWriteTime' -Descending | Select-Object -First 1) }
 }
 
 
@@ -194,7 +179,7 @@ function Read-NetConfig  # читает конфиг сетевых источн
                     }
                     catch  # [System.ComponentModel.Win32Exception]
                     {
-                        "$($v.netpath) does NOT EXIST" | Out-Default
+                        # "$($v.netpath) does NOT EXIST" | Out-Default
                     }
                     
                     if ([System.IO.Directory]::Exists($v.netpath))
@@ -227,7 +212,7 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
         {
             try
             {
-                $CheckList[$v.label] = (Get-Partition -DiskNumber $pos -ErrorAction Stop | Get-Volume).FileSystemLabel -icontains $v.label
+                $CheckList[$v.label] = (Get-Partition -ErrorAction Stop -DiskNumber $pos | Get-Volume).FileSystemLabel -icontains $v.label
             }
             
             catch
@@ -239,14 +224,14 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
         
         try
         {
-            $CheckList['partition count']= (Get-Partition -DiskNumber $pos).Length -eq $volumes.Count
+            $CheckList['partition count']= (Get-Partition -ErrorAction Stop -DiskNumber $pos).Length -eq $volumes.Count
             
-            $CheckList['partition table']= (Get-Disk -Number $pos).PartitionStyle -match 'MBR'
+            $CheckList['partition table']= (Get-Disk -ErrorAction Stop -Number $pos).PartitionStyle -match 'MBR'
         }
         
         catch
         {
-            $CheckList['DiskNotEmpty'] = $false
+            $CheckList['Disk has been Initialized'] = $false
         }
     }
     
@@ -375,7 +360,7 @@ function Test-Wim  # ищет / проверяет / возвращает про
             }
             
             
-            if ($CheckListWim.Values -contains $true) { Write-Host ("    OK          {0,-64}" -f $v.FilePath) -BackgroundColor DarkGreen } # вывод в консоль успешных проверок
+            if ($CheckListWim.Values -contains $true) { Write-Host ("    OK        {0,-66}" -f $v.FilePath) -BackgroundColor DarkGreen } # вывод в консоль успешных проверок
             
             
             $valid += $v | Where-Object {$_.FileExist -eq $true -and $_.md5ok -eq $true}  # список проверенных источников файлов
@@ -397,9 +382,19 @@ function Edit-PartitionTable  # очищает диск полностью и п
     {
         try
         {
-            Clear-Disk -Number $pos -RemoveData -RemoveOEM -Confirm:$false
+            if ('RAW' -eq (Get-Disk -Number 0).PartitionStyle)
+            # чистый диск - нужно инициализировать
+            {
+                Initialize-Disk -Number $pos -PartitionStyle MBR
+            }
+            else
+            # диск размечен
+            {
+                Clear-Disk -Number $pos -RemoveData -RemoveOEM -Confirm:$false
+                
+                Initialize-Disk -Number $pos -PartitionStyle MBR
+            }
             
-            Initialize-Disk -Number $pos -PartitionStyle MBR
             
             foreach ($v in $volumes)
             {
@@ -449,10 +444,10 @@ function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> н
                 
                 
                 # make RAM Disk object
-                bcdedit /create '{ramdiskoptions}' /d 'Windows PE, RAM DISK BOOT' | Out-Null
+                bcdedit /create '{ramdiskoptions}' /d 'Windows PE RAM Disk' | Out-Null
                 bcdedit /set    '{ramdiskoptions}' ramdisksdidevice "partition=$PEletter" | Out-Null
                 bcdedit /set    '{ramdiskoptions}' ramdisksdipath '\.IT\PE\boot.sdi' | Out-Null
-                (bcdedit /create /d "Windows PE, RAM DISK LOADER" /application osloader) -match '\{.*\}' | Out-Null  # "The entry '{e1679017-bc5a-11e9-89cf-a91b7c7227b0}' was successfully created."
+                (bcdedit /create /d "Windows PE RAM Disk" /application osloader) -match '\{.*\}' | Out-Null  # "The entry '{e1679017-bc5a-11e9-89cf-a91b7c7227b0}' was successfully created."
                 $guid = $Matches[0]
                 
                 # make OS loader object
@@ -528,7 +523,7 @@ function Copy-WithCheck  # копирует из папки в папку с п�
     {
         $res = $res -notcontains $false
     
-        Write-Host ( '{0,-5}copy to {1,-12}from {2,24} {3,24}' -f $(if ($res) {'OK'} else {'FAIL'}), $to, $from, '' ) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
+        Write-Host ( '    {0,-4} copy {1,-40} >>> {2,21}' -f $(if ($res) {'OK'} else {'FAIL'}), $from, $to) -BackgroundColor $(if ($res) {'DarkGreen'} else {'DarkRed'})
     }
     
     return $res
@@ -551,7 +546,7 @@ function Reset-OpticalDrive  # отключение виртуального п�
         $ComRecorder.CloseTray()
     }
     
-    catch { $_ | Out-Default }
+    catch { $_ | Out-Null }
     
     return $null
 }
@@ -578,4 +573,70 @@ function Set-NextBoot  # перезагрузка в дефолт-пункт (ч
     # bcdedit /bootsequence '{<uniq_guid>}'
     
     bcdedit /store $bcd.FullName /bootsequence '{default}' | Out-Null
+}
+
+
+function Add-Junctions  # алгоритм вычисления guid в 10й PE и в Windows 10 одинаковый - ссылки через UNC-пути сделанные из PE будут работать и в основной ОС
+{
+    param ()
+    
+    
+    try
+    {
+        # Get-Volume (и модуль Storage в целом) не работает в 7-ке, т.к. WMI не поддерживает нужные классы
+        # поэтому, т.к. эта же функция используется в 7-ке через cmd-костыль, она реализована через Get-CimInstance
+        # в кастомном install.wim установлен 5.1 PowerShell
+        $guidOS = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq 'OS'}).DeviceID
+        
+        $guidPE = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq 'PE'}).DeviceID
+        
+        
+        if (Test-Path -Path ($guidOS + '.IT')) { Remove-Item -Recurse -Force -Path ($guidOS + '.IT') }  # существующая (напр. развёрнута из wim-файла) папка помешает сделать ссылку
+        
+        if (Test-Path -Path ($guidPE + '.IT'))
+        {
+            # junction-ссылка с ОС-тома ведёт на '.IT' загрузочного раздела, пути в формате UNC
+            Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($guidOS + '.IT'), ($guidPE + '.IT')
+        }
+        
+        
+        if (Test-Path -Path ($guidOS + '.OBMEN')) { Remove-Item -Recurse -Force -Path ($guidOS + '.OBMEN') }
+        
+        if (Test-Path -Path ($guidPE + '.OBMEN'))
+        {
+            Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($guidOS + '.OBMEN'), ($guidPE + '.OBMEN')
+        }
+    }
+    
+    catch { $_ }
+    
+    
+    return $res
+}
+
+
+function Add-Junctions7  # в Windows 7 алгоритм назначения guid`ов томам отличается от winPE 10, поэтому ссылки нужно делать делать уже загрузившись в основную ОС
+{
+    param ()
+    
+    
+    $bytes = [System.Text.Encoding]::Unicode.GetBytes( (Get-Command Add-Junctions).Definition )
+    
+    $encodedCommand = [Convert]::ToBase64String($bytes)
+    
+    $AutoRun = (Get-Volume -FileSystemLabel 'OS').DriveLetter + ':\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd'
+    
+    '@echo off' | Out-File -Encoding ascii -FilePath $AutoRun
+    
+    'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -encodedCommand {0}' -f $encodedCommand | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    
+    'echo Add-Junctions' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    
+    'echo %~dpnx0' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    
+    # 'start "" /b explorer.exe "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    
+    'timeout /t 2' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    
+    'erase /f /q "%~dpnx0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
 }

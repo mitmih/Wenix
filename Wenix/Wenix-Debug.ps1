@@ -1,13 +1,15 @@
-Import-Module -Force Wenix
+Clear-Host
+Import-Module -Force -Verbose
 Get-Module -Name Wenix
 
-$NetConfig = Find-NetConfig
+
+# $NetConfig = Find-NetConfig
 
 # $PEloc = Test-WimNet -md5 -ver 'PE' -name 'boot'    
 # $OSloc = Test-WimNet -md5 -ver '10' -name 'install' 
 
-$shares = @()
-if ($null -ne $NetConfig) { $shares += $NetConfig | Read-NetConfig } # else { $shares = @() }
+# $shares = @()
+# if ($null -ne $NetConfig) { $shares += $NetConfig | Read-NetConfig } # else { $shares = @() }
 
 # # $ok = @{} ; $ver = '10' ; $name = 'install'
 # if ($shares.Count -gt 0)

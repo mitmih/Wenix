@@ -40,14 +40,6 @@ Set-PSReadlineKeyHandler -Chord Ctrl+f -ScriptBlock {  # запуск Far
 }
 
 
-Set-PSReadlineKeyHandler -Chord Ctrl+u -ScriptBlock {  # перезагрузка модуля Wenix
-    Get-Module -Name Wenix | Remove-Module
-    
-    Import-Module -Force Wenix
-    
-    Get-Module -Name Wenix
-}
-
 # Set-PSReadlineKeyHandler -Chord Ctrl+i -ScriptBlock {
 # # захват образа на USB drive
 #     $str = '/Capture-Image /CaptureDir:' + $inp + ' /ImageFile:"' + $out + $wimFile + '" /Name:"' + $wimName + '" /Description:"' + $wimDesc + '"'
@@ -85,22 +77,40 @@ Set-Location -Path $env:SystemDrive\  # переход в корень диск�
 
 Get-PSDrive -PSProvider FileSystem | Select-Object Name, Root, Description, Free, Used | Format-Table -AutoSize  # информация о дисках
 
+Start-Process -FilePath "$env:SystemRoot\System32\startnet.cmd"
+
 # Write-Host -ForegroundColor Magenta "      Ctrl + i to capture $inp to $out$wimFile"
 
 # Write-Host -ForegroundColor Red     "Alt + Ctrl + i to capture $inp to $out$wimFile AND SHUTDOWN"
 
-Start-Process -FilePath "$env:SystemRoot\System32\startnet.cmd"
-
 Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
-
-# Start-Process -FilePath "$env:SystemDrive\UltraVNC\winvnc.exe"
-# Start-Process -FilePath 'wpeutil' -ArgumentList 'InitializeNetwork', '/NoWait'
-# Start-Process -FilePath 'wpeutil' -ArgumentList 'DisableFirewall'
-
 
 
 # запуск меню
+function Update-Wenix  # поиск и импорт более свежей версии модуля
+{
+    param ()
+    
+    
+    Import-Module -Force Wenix -Variable 'ModulePath'
+    
+    $FindedModules = @()
+    
+    foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
+    {
+        $w = $v.DriveLetter + ':\' + $ModulePath
+        
+        if (Test-Path -Path $w) { $FindedModules += Get-Module -ListAvailable "$w" }
+    }
+    
+    if ( ($FindedModules | Sort-Object -Property 'Version' | Select-Object -Last 1).Version -gt (Get-Module -Name 'Wenix').Version )
+    {
+        Copy-Item -Recurse -Force -Path ($FindedModules.Path | Split-Path -Parent) -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
+    }
+}
+
+Update-Wenix
+
 
 Import-Module -Force Wenix
-Get-Module Wenix
 Use-Wenix
