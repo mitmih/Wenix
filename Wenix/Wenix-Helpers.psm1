@@ -108,7 +108,7 @@ function Get-VacantLetters  # возвращает список свободны
     
     $busy = Get-PSDrive -PSProvider FileSystem | Where-Object {$null -ne $_.Name -and ($_.Name).Length -lt 2}
     
-    $vacant = $total | Where-Object {$busy.Name -inotcontains $_ -and $volumes.letter -inotcontains $_}
+    $vacant = $total | Where-Object {$busy.Name -inotcontains $_ -and $volumes.Values.letter -inotcontains $_}
 
     return $vacant
 }
@@ -198,6 +198,7 @@ function Read-NetConfig  # читает конфиг сетевых источн
 
 
 function Test-Disk  # проверяет ЖД на соответствие $volumes (метки и кол-во разделов), + стиль разметки MBR
+# нужно добавить проверку размеров разделов
 {
     param (
         $pos = 0,
@@ -208,25 +209,33 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
     
     process
     {
-        foreach ($v in $volumes)
+        try
         {
-            try
+            foreach ($v in $volumes.GetEnumerator())
             {
-                $CheckList[$v.label] = (Get-Partition -ErrorAction Stop -DiskNumber $pos | Get-Volume).FileSystemLabel -icontains $v.label
+                $UNCPath = (Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Path  # UNC-путь к тому/разделу, если метки совпали
+                
+                $PartSize = (Get-Partition -ErrorAction Stop | Where-Object {$_.AccessPaths -icontains $UNCPath}).Size  # размер раздела (отличается от размера тома !!!)
+                
+                if ($PartSize)
+                {
+                    $CheckList[$v.Key] = if ($v.Value.size -gt 0) {$v.Value.size -eq $PartSize } else { $true }
+                }
+                else { $CheckList[$v.Key] = $false }
             }
-            
-            catch
-            {
-                $CheckList[$v.label] = $false
-            }
+        }
+        
+        catch
+        {
+            $CheckList['Get-Partition'] = $false
         }
         
         
         try
         {
-            $CheckList['partition count']= (Get-Partition -ErrorAction Stop -DiskNumber $pos).Length -eq $volumes.Count
+            $CheckList['partitions count']= (Get-Partition -ErrorAction Stop -DiskNumber $DiskNumber).Length -eq $volumes.Count
             
-            $CheckList['partition table']= (Get-Disk -ErrorAction Stop -Number $pos).PartitionStyle -match 'MBR'
+            $CheckList['partitions table']= (Get-Disk -ErrorAction Stop -Number $DiskNumber).PartitionStyle -match 'MBR'
         }
         
         catch
@@ -371,7 +380,7 @@ function Test-Wim  # ищет / проверяет / возвращает про
 }
 
 
-function Edit-PartitionTable  # очищает диск полностью и пересоздаёт разделы согласно $volumes
+function Edit-PartitionTable  # очищает диск полностью и размечает его на разделы согласно $volumes
 {
     param ( $pos = 0 )
     
@@ -385,28 +394,28 @@ function Edit-PartitionTable  # очищает диск полностью и п
             if ('RAW' -eq (Get-Disk -Number 0).PartitionStyle)
             # чистый диск - нужно инициализировать
             {
-                Initialize-Disk -Number $pos -PartitionStyle MBR
+                Initialize-Disk -Number $DiskNumber -PartitionStyle MBR
             }
             else
             # диск размечен
             {
-                Clear-Disk -Number $pos -RemoveData -RemoveOEM -Confirm:$false
+                Clear-Disk -Number $DiskNumber -RemoveData -RemoveOEM -Confirm:$false
                 
-                Initialize-Disk -Number $pos -PartitionStyle MBR
+                Initialize-Disk -Number $DiskNumber -PartitionStyle MBR
             }
             
             
-            foreach ($v in $volumes)
+            foreach ($v in $volumes.GetEnumerator())
             {
                 $params = @{
                     'DiskNumber'  = $pos
-                    'DriveLetter' = $v.letter
+                    'DriveLetter' = $v.Value.letter
                     'ErrorAction' = 'Stop'
-                    'IsActive'    = $v.active
+                    'IsActive'    = $v.Value.active
                 }
-                if ($v.size -gt 0) {$params['Size'] = $v.size} else {$params['UseMaximumSize'] = $true}
+                if ($v.Value.size -gt 0) {$params['Size'] = $v.Value.size} else {$params['UseMaximumSize'] = $true}
                 
-                New-Partition @params | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel $v.label -ErrorAction Stop }
+                New-Partition @params | Format-Volume -FileSystem 'NTFS' -NewFileSystemLabel $v.Value.label -ErrorAction Stop }
                 
                 $res = $true
         }
@@ -418,18 +427,18 @@ function Edit-PartitionTable  # очищает диск полностью и п
 }
 
 
-function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> на раздел 'PE', install.wim -> 'OS'
+function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> на том 'VolPE', install.wim -> 'VolOS'
 {
-    param ($ver = ''<# , [switch]$PE = $false #>)
+    param ($ver = '')
     
     
     begin
     {
         $res = $false
         
-        $PEletter = "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):"
+        $PEletter = '{0}:' -f (Get-Volume -FileSystemLabel $volumes['VolPE'].label).DriveLetter
         
-        $OSletter = "$((Get-Volume -FileSystemLabel 'OS').DriveLetter):"
+        $OSletter = '{0}:' -f (Get-Volume -FileSystemLabel $volumes['VolOS'].label).DriveLetter
     }
     
     process
@@ -465,7 +474,7 @@ function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> н
             }
             elseif ( (Test-Path -Path "$PEletter\.IT\$ver\install.wim") )
             {
-                $null = Format-Volume -FileSystemLabel 'OS' -NewFileSystemLabel 'OS' -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
+                $null = Format-Volume -FileSystemLabel $volumes['VolOS'].label -NewFileSystemLabel $volumes['VolOS'].label -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
                 $null = Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 <# -Verify #> -ErrorAction Stop
                 
@@ -578,17 +587,14 @@ function Set-NextBoot  # перезагрузка в дефолт-пункт (ч
 
 function Add-Junctions  # алгоритм вычисления guid в 10й PE и в Windows 10 одинаковый - ссылки через UNC-пути сделанные из PE будут работать и в основной ОС
 {
-    param ()
-    
-    
     try
     {
         # Get-Volume (и модуль Storage в целом) не работает в 7-ке, т.к. WMI не поддерживает нужные классы
         # поэтому, т.к. эта же функция используется в 7-ке через cmd-костыль, она реализована через Get-CimInstance
         # в кастомном install.wim установлен 5.1 PowerShell
-        $guidOS = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq 'OS'}).DeviceID
+        $guidPE = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq $volumes['VolPE'].label}).DeviceID
         
-        $guidPE = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq 'PE'}).DeviceID
+        $guidOS = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq $volumes['VolOS'].label}).DeviceID
         
         
         if (Test-Path -Path ($guidOS + '.IT')) { Remove-Item -Recurse -Force -Path ($guidOS + '.IT') }  # существующая (напр. развёрнута из wim-файла) папка помешает сделать ссылку
@@ -597,14 +603,6 @@ function Add-Junctions  # алгоритм вычисления guid в 10й PE 
         {
             # junction-ссылка с ОС-тома ведёт на '.IT' загрузочного раздела, пути в формате UNC
             Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($guidOS + '.IT'), ($guidPE + '.IT')
-        }
-        
-        
-        if (Test-Path -Path ($guidOS + '.OBMEN')) { Remove-Item -Recurse -Force -Path ($guidOS + '.OBMEN') }
-        
-        if (Test-Path -Path ($guidPE + '.OBMEN'))
-        {
-            Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($guidOS + '.OBMEN'), ($guidPE + '.OBMEN')
         }
     }
     
@@ -617,14 +615,15 @@ function Add-Junctions  # алгоритм вычисления guid в 10й PE 
 
 function Add-Junctions7  # в Windows 7 алгоритм назначения guid`ов томам отличается от winPE 10, поэтому ссылки нужно делать делать уже загрузившись в основную ОС
 {
-    param ()
+    # изворот: в функции Add-Junctions есть обращения к глобальной конфиг-переменной $volumes
+    # поэтому в тексте encodedCommand нужно определить точь в точь такую же переменную, чтобы сохранить работоспособность при выполнении через батник
+    $txt = Get-Content -Encoding UTF8 -Raw -Path ((Get-Module Wenix).NestedModules | Where-Object {$_.name -match 'config'}).path
     
-    
-    $bytes = [System.Text.Encoding]::Unicode.GetBytes( (Get-Command Add-Junctions).Definition )
+    $bytes = [System.Text.Encoding]::Unicode.GetBytes( ($txt -ireplace 'Export-ModuleMember -Variable \*', '') + (Get-Command Add-Junctions).Definition )
     
     $encodedCommand = [Convert]::ToBase64String($bytes)
     
-    $AutoRun = (Get-Volume -FileSystemLabel 'OS').DriveLetter + ':\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd'
+    $AutoRun = (Get-Volume -FileSystemLabel $volumes['VolOS'].label).DriveLetter + ':\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd'
     
     '@echo off' | Out-File -Encoding ascii -FilePath $AutoRun
     
@@ -636,7 +635,7 @@ function Add-Junctions7  # в Windows 7 алгоритм назначения gu
     
     # 'start "" /b explorer.exe "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
-    'timeout /t 2' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    'timeout /t 5' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
     'erase /f /q "%~dpnx0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
 }
