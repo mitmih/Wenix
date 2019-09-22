@@ -23,7 +23,7 @@ function Use-Wenix  # главный поток исполнения скрип�
             
             switch ( $key.key )
             {
-                { $_ -in @( 'D0', 'D7' ) }  # нажали 0 или 7
+                { $_ -in @( 'D0', 'D7', 'NumPad0', 'NumPad7' ) }  # нажали 0 или 7
                 {
                     Write-Host ("  <<<     selected{0,62}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black
                     
@@ -31,7 +31,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
                     
-                    $ver = if ( $_ -eq 'D7' ) { '7' } else { '10' }  # 7 -> развёртывание Windows 7 install.wim, # 0 -> развёртывание Windows 10 install.wim
+                    $ver = if ( $_ -in @( 'D7', 'NumPad7' ) ) { '7' } else { '10' }  # 7 -> развёртывание Windows 7 install.wim, # 0 -> развёртывание Windows 10 install.wim
                     
                     $Disk0isOk = Test-Disk
                     
