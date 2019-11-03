@@ -86,7 +86,8 @@ REM очистка на случай если остались какие-то �
             call "%wpe%\copype.cmd" %arc% "%wd%\%arc%"
             
             
-        REM чтобы ускорить сборку, положим рядом с этим скриптом готовый boot.wim с пакетами и назовём его clear.wim
+        REM ускоренная сборка использует ЗАРАНЕЕ ПРИГОТОВЛЕННЫЙ ПОЛУФАБРИКАТ - clear.wim - это стандартный boot.wim с интегрированными пакетами (lines #123..#164)
+        REM чтобы его приготовить, нужно закоментировать интеграцию wenix в winPE (lines #168..#178), запустить скрипт с параметром "clear", скопировать .\.pe_work_dir\amd64\media\sources\boot.wim в .\clear.wim
             
             if exist "%~dp0clear.wim" (
                 
@@ -124,6 +125,8 @@ REM установка доп. пакетов, порядок важен!
     if /i "%1"=="clear" (
         
         if exist "%~dp0clear.wim" (
+            
+            REM используем полуфабрикат clear.wim
             
             echo NOT NEED TO INSTALL PACKAGES
             
@@ -225,7 +228,7 @@ REM make iso-file
         
         mklink /h "%wd%\%arc%\media\.IT\PE\boot.sdi"                "%wd%\%arc%\media\Boot\boot.sdi"
         
-        mklink /h "%wd%\%arc%\media\.IT\PE\Add-2nd_boot_entry.cmd"  "%wd%\..\..\scripts_helpers\Add-WinPE_RAMDisk_to_boot_menu_from_WINDOWS.cmd"
+        mklink /h "%wd%\%arc%\media\.IT\PE\Add-2nd_boot_entry.cmd"  "%wd%\..\..\scripts_helpers\Add-2nd_boot_entry.cmd.cmd"
         
         mklink /h "%wd%\%arc%\media\.IT\PE\BootStrap.csv"           "%wd%\..\BootStrap.csv"
         
