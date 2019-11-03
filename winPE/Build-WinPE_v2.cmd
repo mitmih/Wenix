@@ -1,14 +1,14 @@
 @echo off && cls && echo Author Dmitriy Mikhaylov aka alt-air && chcp 65001>nul && echo.
 
 REM выбор уровня сборки iso-файла
-REM     скрипт реализует три подхода (уровня) при сборке итогового iso-файла, разной степени длительности:
-REM         1 - самый долгий - сборка winPE с самого начала
+REM     скрипт реализует три уровня сборки winPE iso-файла, разной степени длительности:
+REM         1 - самый долгий - сборка winPE "с нуля" из исходных файлов Windows ADK
 REM         нужные пакеты интегрируются в чистый boot.wim (достаточно длительная процедура)
-REM         полученный образ дублируется в файл-полуфабрикат semi1.wim
+REM         полученный образ дублируется в полуфабрикат semi1.wim
 REM
 REM         2 - самый средний - используется собранный с нужными пакетами semi1.wim
 REM         в него добавляется ПО и актуальная версия Wenix`а
-REM         полученный образ дублируется в semi2.wim
+REM         полученный образ дублируется в полуфабрикат semi2.wim
 REM
 REM         3 - самый быстрый - пересборка iso-файла, используется последний доступный semi2.wim
 REM         новая версия Wenix`а копируется в "iso-root:\.IT\PE\Wenix"
@@ -367,9 +367,9 @@ REM сборка iso-файла winPE
         rd /s /q "%wd%\%arc%\media\boot\zh-tw"
     
     
-    REM сборка winPE в iso-файл
+    REM сборка iso-файла winPE, подсчёт md5-хэша
         
-        "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" "%wd%\%arc%\media" "%~dp0WinPE_10_x64_LTI.iso"
+        "%iso%" -m -o -u2 -l"Wenix WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" "%wd%\%arc%\media" "%~dp0WinPE_10_x64_LTI.iso"
         
         start "%~n0" powershell -command "& {%~dp0Make-Wim_md5.ps1 -path '%~dp0WinPE_10_x64_LTI.iso'}"
 
