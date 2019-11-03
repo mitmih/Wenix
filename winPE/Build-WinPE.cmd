@@ -128,7 +128,7 @@ REM установка доп. пакетов, порядок важен!
             
             REM используем полуфабрикат clear.wim
             
-            echo NOT NEED TO INSTALL PACKAGES
+            echo using clear.wim with installed packages
             
         ) else (
             
