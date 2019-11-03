@@ -12,16 +12,6 @@ REM         полученный образ дублируется в semi2.wim
 REM
 REM         3 - самый быстрый - пересборка iso-файла, используется последний доступный semi2.wim
 REM         новая версия Wenix`а копируется в "iso-root:\.IT\PE\Wenix"
-    
-    if /i "%1" == "1" ( goto GOTO_level_1 )
-    
-    if /i "%1" == "2" ( goto GOTO_level_2 )
-    
-    if /i "%1" == "3" ( goto GOTO_level_3 )
-
-    if /i  %1  GTR 3  ( goto GOTO_GTR)
-    
-    if /i  %1  LSS 1  ( goto GOTO_LSS)
 
 
 REM установка переменных среды исполнения
@@ -65,7 +55,20 @@ REM установка переменных среды исполнения
         
         set "WinPERoot=C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Windows Preinstallation Environment"
         
-        set "OSCDImgRoot=C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\AMD64\Oscdimg"
+        set "OSCDImgRoot=C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\%arc%\Oscdimg"
+
+
+REM переход на указанный уровень сборки
+    
+    if /i "%1" == "1" ( goto GOTO_level_1 )
+    
+    if /i "%1" == "2" ( goto GOTO_level_2 )
+    
+    if /i "%1" == "3" ( goto GOTO_level_3 )
+
+    if /i  %1  GTR 3  ( goto GOTO_GTR)
+    
+    if /i  %1  LSS 1  ( goto GOTO_LSS)
 
 
 REM сборка новой конфигурации winPE и сохранение полученного boot.wim в качестве полуфабриката clear.wim
@@ -82,7 +85,7 @@ REM сборка новой конфигурации winPE и сохранени
         if errorlevel 1 ( pause && exit )
         
         
-        REM очистка
+        REM очистка рабочей папки
             
             if exist "%wd%\" ( rmdir /s /q "%wd%" )
         
