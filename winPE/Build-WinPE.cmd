@@ -172,7 +172,7 @@ REM добавление в корень системного диска WinPE: 
     
     xcopy "%~dp0Far"        "%mnt%\Far\"      /e /y
     
-    xcopy "%~dp0..\scripts_helpers\debug\Debug-Mount_Z.cmd"  "%mnt%\" /y
+    REM xcopy "%~dp0..\scripts_helpers\debug\Debug-Mount_Z.cmd"  "%mnt%\" /y
 
 
 
