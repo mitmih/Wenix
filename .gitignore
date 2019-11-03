@@ -1,6 +1,6 @@
 *.exe
 *.dll
-*.iso
+*.iso*
 *.wim*
 
 .~lock.*.*#
