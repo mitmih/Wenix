@@ -75,7 +75,7 @@ REM сборка новой конфигурации winPE и сохранени
     
     :GOTO_level_1
     
-    echo GOTO_level_1
+    echo. & echo GOTO_level_1
     
     
     REM очистка на случай если остались какие-то ранее смонтированные образы
@@ -170,20 +170,20 @@ REM сборка новой конфигурации winPE и сохранени
             
             dism /Export-image /SourceImageFile:"%wd%\%arc%\media\sources\boot0.wim" /SourceIndex:1 /DestinationImageFile:"%wd%\%arc%\media\sources\boot.wim" /compress:max
             
-            start "%~n0" powershell -command "& {%~dp0Make-Wim_md5.ps1 -path '%wd%\%arc%\media\sources\boot.wim'}"
-            
             del "%wd%\%arc%\media\sources\boot0.wim" /F /Q
             
         ) else ( pause )
         
         
-    REM полуфабрикат1 (жёсткая ссылка быстрее файлового копирования)
+    REM полуфабрикат1
         
-        if exist "%semi1%"     ( del "%semi1%"     /F /Q )
+        if exist "%semi1%*"     ( del "%semi1%*"     /F /Q )
         
-        if exist "%semi1%.md5" ( del "%semi1%.md5" /F /Q )
+        REM if exist "%semi1%.md5" ( del "%semi1%.md5" /F /Q )
         
         mklink /h "%semi1%" "%wd%\%arc%\media\sources\boot.wim"
+        
+        del "%wd%\%arc%\media\sources\boot.wim" /F /Q
         
         start "%~n0" powershell -command "& {%~dp0Make-Wim_md5.ps1 -path '%semi1%'}"
 
@@ -192,7 +192,16 @@ REM добавление ПО, Wenix
     
     :GOTO_level_2
     
-    echo 2
+    echo. & echo GOTO_level_2
+    
+    
+    REM используем полуфабрикат1
+        
+        if exist "%wd%\%arc%\media\sources\*" ( del "%wd%\%arc%\media\sources\*" /F /Q )
+        
+        xcopy "%semi1%" "%wd%\%arc%\media\sources\" /y
+        
+        ren "%wd%\%arc%\media\sources\semi1.wim" boot.wim
     
     
     REM монтирование
@@ -217,12 +226,28 @@ REM добавление ПО, Wenix
         dism /unmount-wim /mountdir:%mnt% /commit
     
     
-    REM полуфабрикат2
+    REM сжатие и подсчёт MD5
+        
+        if errorlevel 0 (
+            
+            ren "%wd%\%arc%\media\sources\boot.wim" boot0.wim
+            
+            dism /Export-image /SourceImageFile:"%wd%\%arc%\media\sources\boot0.wim" /SourceIndex:1 /DestinationImageFile:"%wd%\%arc%\media\sources\boot.wim" /compress:max
+            
+            del "%wd%\%arc%\media\sources\boot0.wim" /F /Q
+            
+        ) else ( pause )
+    
+    
+    REM полуфабрикат2 (жёсткая ссылка быстрее файлового копирования)
+        
         if exist "%semi2%"     ( del "%semi2%"     /F /Q )
         
         if exist "%semi2%.md5" ( del "%semi2%.md5" /F /Q )
         
         mklink /h "%semi2%" "%wd%\%arc%\media\sources\boot.wim"
+        
+        del "%wd%\%arc%\media\sources\boot.wim" /F /Q
         
         start "%~n0" powershell -command "& {%~dp0Make-Wim_md5.ps1 -path '%semi2%'}"
 
@@ -231,7 +256,18 @@ REM сборка iso-файла winPE
     
     :GOTO_level_3
     
-    echo 3
+    echo. & echo GOTO_level_3
+    
+    
+    REM используем полуфабрикат2
+        
+        if exist "%wd%\%arc%\media\sources\*" ( del "%wd%\%arc%\media\sources\*" /F /Q )
+        
+        xcopy "%semi2%" "%wd%\%arc%\media\sources\" /y
+        
+        ren "%wd%\%arc%\media\sources\semi2.wim" boot.wim
+        
+        start "%~n0" /wait powershell -command "& {%~dp0Make-Wim_md5.ps1 -path '%wd%\%arc%\media\sources\boot.wim'}"
     
     
     REM готовим папку .IT\PE с файлами ram-диска в корне ISO - она понадобится Wenix`у во время поиска установочных файлов на дисках и флешках на этапе проверки готовности к (пере)установке ОС
@@ -250,7 +286,7 @@ REM сборка iso-файла winPE
         
         mklink /h "%wd%\%arc%\media\.IT\PE\boot.sdi"                "%wd%\%arc%\media\Boot\boot.sdi"
         
-        mklink /h "%wd%\%arc%\media\.IT\PE\Add-2nd_boot_entry.cmd"  "%wd%\..\..\scripts_helpers\Add-2nd_boot_entry.cmd.cmd"
+        mklink /h "%wd%\%arc%\media\.IT\PE\Add-2nd_boot_entry.cmd"  "%wd%\..\..\scripts_helpers\Add-2nd_boot_entry.cmd"
         
         mklink /h "%wd%\%arc%\media\.IT\PE\BootStrap.csv"           "%wd%\..\BootStrap.csv"
         
@@ -339,18 +375,21 @@ REM сборка iso-файла winPE
 REM завершение работы скрипта
     
     :GOTO_EXIT
-        timeout 7 && exit
+        
+        pause
+        
+        timeout 7
     
     
     :GOTO_LSS
         
-        echo GOTO_LSS
+        echo. & echo GOTO_LSS
         
         goto GOTO_EXIT
     
     
     :GOTO_GTR
         
-        echo GOTO_GTR
+        echo. & echo GOTO_GTR
         
         goto GOTO_EXIT
