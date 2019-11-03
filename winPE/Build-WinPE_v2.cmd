@@ -369,16 +369,18 @@ REM сборка iso-файла winPE
     
     REM сборка winPE в iso-файл
         
-        "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" %wd%\%arc%\media "%~dp0WinPE_10_x64_LTI.iso"
+        "%iso%" -m -o -u2 -l"WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" "%wd%\%arc%\media" "%~dp0WinPE_10_x64_LTI.iso"
+        
+        start "%~n0" powershell -command "& {%~dp0Make-Wim_md5.ps1 -path '%~dp0WinPE_10_x64_LTI.iso'}"
 
 
 REM завершение работы скрипта
     
     :GOTO_EXIT
         
-        pause
+        REM pause
         
-        timeout 7
+        timeout 7 & exit
     
     
     :GOTO_LSS
