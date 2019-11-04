@@ -167,6 +167,20 @@ function Read-NetConfig  # читает конфиг сетевых источн
                 {
                     $tcp.EndConnect($connect) | Out-Null
                     
+                    
+                    # при необходимости учётные данные пользователя сетевой папки будут конвертированы из base64 в utf8-no-BOM
+                    
+                    $UTF8NoBOM = New-Object System.Text.UTF8Encoding $false
+                    
+                    try { $s.user     = $UTF8NoBOM.GetString([System.Convert]::FromBase64String($s.user    )) }
+                    
+                    catch {}
+                    
+                    try { $s.password = $UTF8NoBOM.GetString([System.Convert]::FromBase64String($s.password)) }
+                    
+                    catch {}
+                    
+                    
                     $v = $s | Select-Object -Property *, 'PSDrive'
                     
                     $cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $v.user, (ConvertTo-SecureString $v.password -AsPlainText -Force)
