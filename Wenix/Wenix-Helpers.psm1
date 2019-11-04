@@ -187,7 +187,6 @@ function Read-NetConfig  # читает конфиг сетевых источн
                         $v.PSDrive = $drive.Name
                         
                         $valid += $v
-                        
                     }
                 }
             }
