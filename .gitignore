@@ -17,3 +17,6 @@ UltraVNC/
 
 BootStrap.csv
 !BootStrap.csv.example
+
+New-NetConfig_AD.csv
+!New-NetConfig_AD.csv.example
