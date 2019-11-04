@@ -23,12 +23,12 @@ REM установка переменных среды исполнения
     
     REM рабочая папка
     
-        set "wd=%~dp0.pe_work_dir"
+        set "wd=%~dp0..\winPE\.pe_work_dir"
     
     
     REM папка монтирования wim-образа
     
-        set "mnt=%~dp0.pe_mount_point"
+        set "mnt=%~dp0..\winPE\.pe_mount_point"
     
     
     REM папки устнановленного Kits
@@ -46,9 +46,14 @@ REM установка переменных среды исполнения
     
     REM полуфабрикаты 1 и 2
         
-        set "semi1=%~dp0semi1.wim"
+        set "semi1=%~dp0..\winPE\semi1.wim"
         
-        set "semi2=%~dp0semi2.wim"
+        set "semi2=%~dp0..\winPE\semi2.wim"
+    
+    
+    REM PoSh-калькулятор md5-хэшей файлов, сохраняет результат в file.ext.md5
+        
+        set "md5calc=%~dp0Make-MD5File.ps1"
     
     
     REM для использования copype.cmd нужно установить переменные среды, которые обычно устанавливает DandISetEnv.bat
@@ -179,13 +184,11 @@ REM сборка новой конфигурации winPE и сохранени
         
         if exist "%semi1%*"     ( del "%semi1%*"     /F /Q )
         
-        REM if exist "%semi1%.md5" ( del "%semi1%.md5" /F /Q )
-        
         mklink /h "%semi1%" "%wd%\%arc%\media\sources\boot.wim"
         
         del "%wd%\%arc%\media\sources\boot.wim" /F /Q
         
-        start "%~n0" powershell -command "& {%~dp0Make-MD5File.ps1 -path '%semi1%'}"
+        start "%~n0" powershell -command "& {%md5calc% -path '%semi1%'}"
 
 
 REM добавление ПО, Wenix
@@ -193,6 +196,10 @@ REM добавление ПО, Wenix
     :GOTO_level_2
     
     echo. & echo GOTO_level_2
+    
+    
+    REM если отсутствует полуфабрикат1 - GOTO_level_1
+        if not exist %semi1% ( goto GOTO_level_1 )
     
     
     REM используем полуфабрикат1
@@ -210,15 +217,15 @@ REM добавление ПО, Wenix
     
     REM настройка PoSh-профиля, запуска winPE, добавление Wenix`а и ПО
         
-        xcopy "%~dp0Windows"    "%mnt%\Windows\"  /e /y
+        xcopy "%wd%\..\Windows"    "%mnt%\Windows\"  /e /y
         
-        xcopy "%~dp0..\Wenix"   "%mnt%\Windows\System32\config\systemprofile\Documents\WindowsPowerShell\Modules\Wenix\"  /e /y
+        xcopy "%wd%\..\..\Wenix"   "%mnt%\Windows\System32\config\systemprofile\Documents\WindowsPowerShell\Modules\Wenix\"  /e /y
         
-        xcopy "%~dp0Far"        "%mnt%\Far\"      /e /y
+        xcopy "%wd%\..\Far"        "%mnt%\Far\"      /e /y
         
-        xcopy "%~dp0UltraVNC"   "%mnt%\UltraVNC\" /e /y
+        xcopy "%wd%\..\UltraVNC"   "%mnt%\UltraVNC\" /e /y
         
-        REM xcopy "%~dp0..\scripts_helpers\debug\Debug-Mount_Z.cmd"  "%mnt%\" /y
+        REM xcopy "%wd%\..\..\scripts_helpers\debug\Debug-Mount_Z.cmd"  "%mnt%\" /y
     
     
     REM фиксация изменений 2-го уровня
@@ -249,7 +256,7 @@ REM добавление ПО, Wenix
         
         del "%wd%\%arc%\media\sources\boot.wim" /F /Q
         
-        start "%~n0" powershell -command "& {%~dp0Make-MD5File.ps1 -path '%semi2%'}"
+        start "%~n0" powershell -command "& {%md5calc% -path '%semi2%'}"
 
 
 REM сборка iso-файла winPE
@@ -257,6 +264,10 @@ REM сборка iso-файла winPE
     :GOTO_level_3
     
     echo. & echo GOTO_level_3
+    
+    
+    REM если отсутствует полуфабрикат2 - GOTO_level_2
+        if not exist %semi2% ( goto GOTO_level_2 )
     
     
     REM используем полуфабрикат2
@@ -267,7 +278,7 @@ REM сборка iso-файла winPE
         
         ren "%wd%\%arc%\media\sources\semi2.wim" boot.wim
         
-        start "%~n0" /wait powershell -command "& {%~dp0Make-MD5File.ps1 -path '%wd%\%arc%\media\sources\boot.wim'}"
+        start "%~n0" /wait powershell -command "& {%md5calc% -path '%wd%\%arc%\media\sources\boot.wim'}"
     
     
     REM готовим папку .IT\PE с файлами ram-диска в корне ISO - она понадобится Wenix`у во время поиска установочных файлов на дисках и флешках на этапе проверки готовности к (пере)установке ОС
@@ -369,9 +380,11 @@ REM сборка iso-файла winPE
     
     REM сборка iso-файла winPE, подсчёт md5-хэша
         
-        "%iso%" -m -o -u2 -l"Wenix WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" "%wd%\%arc%\media" "%~dp0WinPE_10_x64_LTI.iso"
+        "%iso%" -m -o -u2 -l"Wenix WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" "%wd%\%arc%\media" "%wd%\..\WinPE_10_x64_LTI.iso"
         
-        start "%~n0" powershell -command "& {%~dp0Make-MD5File.ps1 -path '%~dp0WinPE_10_x64_LTI.iso'}"
+        if not errorlevel 0 ( pause )
+        
+        start "%~n0" powershell -command "& {%md5calc% -path '%wd%\..\WinPE_10_x64_LTI.iso'}"
 
 
 REM завершение работы скрипта
