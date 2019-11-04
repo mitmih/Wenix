@@ -1,0 +1,4 @@
+"id","adpath"
+"ou_1","OU=Moscow, OU=Computers,  OU=Russia, DC=expample, DC=com"
+"ou_2","OU=Piter,  OU=Computers,  OU=Russia, DC=expample, DC=com"
+"ou_3","OU=Minsk,  OU=Computers, OU=Belarus, DC=expample, DC=com"
