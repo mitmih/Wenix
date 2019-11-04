@@ -185,7 +185,7 @@ REM сборка новой конфигурации winPE и сохранени
         
         del "%wd%\%arc%\media\sources\boot.wim" /F /Q
         
-        start "%~n0" powershell -command "& {%~dp0Make-Wim_md5.ps1 -path '%semi1%'}"
+        start "%~n0" powershell -command "& {%~dp0Make-MD5File.ps1 -path '%semi1%'}"
 
 
 REM добавление ПО, Wenix
@@ -249,7 +249,7 @@ REM добавление ПО, Wenix
         
         del "%wd%\%arc%\media\sources\boot.wim" /F /Q
         
-        start "%~n0" powershell -command "& {%~dp0Make-Wim_md5.ps1 -path '%semi2%'}"
+        start "%~n0" powershell -command "& {%~dp0Make-MD5File.ps1 -path '%semi2%'}"
 
 
 REM сборка iso-файла winPE
@@ -267,7 +267,7 @@ REM сборка iso-файла winPE
         
         ren "%wd%\%arc%\media\sources\semi2.wim" boot.wim
         
-        start "%~n0" /wait powershell -command "& {%~dp0Make-Wim_md5.ps1 -path '%wd%\%arc%\media\sources\boot.wim'}"
+        start "%~n0" /wait powershell -command "& {%~dp0Make-MD5File.ps1 -path '%wd%\%arc%\media\sources\boot.wim'}"
     
     
     REM готовим папку .IT\PE с файлами ram-диска в корне ISO - она понадобится Wenix`у во время поиска установочных файлов на дисках и флешках на этапе проверки готовности к (пере)установке ОС
@@ -371,7 +371,7 @@ REM сборка iso-файла winPE
         
         "%iso%" -m -o -u2 -l"Wenix WinPE x64 LTI" -b"%wd%\amd64\fwfiles\etfsboot.com" "%wd%\%arc%\media" "%~dp0WinPE_10_x64_LTI.iso"
         
-        start "%~n0" powershell -command "& {%~dp0Make-Wim_md5.ps1 -path '%~dp0WinPE_10_x64_LTI.iso'}"
+        start "%~n0" powershell -command "& {%~dp0Make-MD5File.ps1 -path '%~dp0WinPE_10_x64_LTI.iso'}"
 
 
 REM завершение работы скрипта
