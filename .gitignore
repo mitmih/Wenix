@@ -16,3 +16,4 @@ UltraVNC/
 .pe_work_dir/
 
 BootStrap.csv
+!BootStrap.csv.example
