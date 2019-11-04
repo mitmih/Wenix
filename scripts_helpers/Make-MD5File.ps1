@@ -1,6 +1,7 @@
-param (
+param
+(
     [string] $path = ".\.pe_work_dir\amd64\media\sources\boot.wim"
-    )
+)
 
 Set-Location "$($MyInvocation.MyCommand.Definition | Split-Path -Parent)"
 
