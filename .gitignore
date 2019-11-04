@@ -1,6 +1,6 @@
 *.exe
 *.dll
-*.iso
+*.iso*
 *.wim*
 
 .~lock.*.*#
@@ -16,3 +16,7 @@ UltraVNC/
 .pe_work_dir/
 
 BootStrap.csv
+!BootStrap.csv.example
+
+New-NetConfig_AD.csv
+!New-NetConfig_AD.csv.example

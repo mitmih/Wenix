@@ -23,7 +23,7 @@ function Use-Wenix  # главный поток исполнения скрип�
             
             switch ( $key.key )
             {
-                { $_ -in @( 'D0', 'D7' ) }  # нажали 0 или 7
+                { $_ -in @( 'D0', 'D7', 'NumPad0', 'NumPad7' ) }  # нажали 0 или 7
                 {
                     Write-Host ("  <<<     selected{0,62}" -f "`n") -BackgroundColor Yellow -ForegroundColor Black
                     
@@ -31,7 +31,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'installation process launched') #_#
                     
-                    $ver = if ( $_ -eq 'D7' ) { '7' } else { '10' }  # 7 -> развёртывание Windows 7 install.wim, # 0 -> развёртывание Windows 10 install.wim
+                    $ver = if ( $_ -in @( 'D7', 'NumPad7' ) ) { '7' } else { '10' }  # 7 -> развёртывание Windows 7 install.wim, # 0 -> развёртывание Windows 10 install.wim
                     
                     $Disk0isOk = Test-Disk
                     
@@ -163,7 +163,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         if ( $Disk0isOk )  # remove all (except .IT dir) # overwrite with the latest found win PE boot.wim
                         {
-                            Get-Item -Path "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\*" -Exclude '.IT', '.OBMEN' -Force | Remove-Item -Force -Recurse  # очистка тома 'PE' от старой non-ram PE
+                            Get-Item -Path ('{0}:\*' -f (Get-Volume -FileSystemLabel $volumes['VolPE'].label).DriveLetter) -Exclude '.IT' -Force | Remove-Item -Force -Recurse  # очистка 'PE'-тома
                             
                             Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Mount-Standart') #_#
                         }
@@ -175,29 +175,23 @@ function Use-Wenix  # главный поток исполнения скрип�
                         }
                         
                         
-                        if ( (Copy-WithCheck -from 'X:\.IT\PE' -to "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\PE") )
-                        # copy PE back to the 'PE' volume # apply copied boot.wim to 'PE' volume
+                        if ( (Copy-WithCheck -from 'X:\.IT\PE' -to ('{0}:\.IT\PE' -f (Get-Volume -FileSystemLabel $volumes['VolPE'].label).DriveLetter) ) )
+                        # copy PE folder back to the 'PE' volume # apply copied boot.wim to the 'PE' volume
                         {
                             $log['Install-Wim PE'] = (Install-Wim -ver 'PE')
                             
                             Write-Host ("{0,5:N1} minutes {1} = {2}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Install-Wim PE', $log['Install-Wim PE']) #_#
-                            
-                            if ( !(Test-Path -Path ( (Get-Volume -FileSystemLabel 'PE').DriveLetter + ':\.OBMEN' )) )
-                            # сделаем папку обмен, если её ещё нет
-                            {
-                                New-Item -ItemType Directory -Path ( (Get-Volume -FileSystemLabel 'PE').DriveLetter + ':\.OBMEN' )
-                            }
                         }
                         else { $log['restore RAM-disk from X:'] = $false }  # errors raised during copying - требуется внимание специалиста
                         
                         #endregion
                         
                         
-                        #region apply install.wim to 'OS' volume
+                        #region apply install.wim to the 'OS' volume
                         
                         foreach ( $wim in ($Sourses | Where-Object {$_.OS -eq $ver}) )
                         {
-                            $to = "$((Get-Volume -FileSystemLabel 'PE').DriveLetter):\.IT\$ver"
+                            $to = '{0}:\.IT\{1}' -f (Get-Volume -FileSystemLabel $volumes['VolPE'].label).DriveLetter, $ver
                             
                             $copy = Copy-WithCheck -from $wim.Root -to $to
                             
@@ -226,7 +220,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         Set-NextBoot  # принудительно загрузиться в свежую ОС - ускоряет процесс установки
                         
-                        # junction-ссылки на папки .IT и .OBMEN
+                        # junction-ссылки на .IT
                         if ($ver -eq '10') { Add-Junctions } elseif ($ver -eq '7' ) { Add-Junctions7 }
                         
                         Write-Host ('|=> {0:-2} <=|' -f $ver)

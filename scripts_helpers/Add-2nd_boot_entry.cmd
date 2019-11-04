@@ -68,6 +68,8 @@ REM make OS loader object
 REM add the new boot entry to the boot menu
     
     bcdedit /displayorder %GUID% /addlast
+    
+    bcdedit /timeout 5
 
 
-if errorlevel 1 (pause && exit)
+REM if errorlevel 1 (pause && exit)
