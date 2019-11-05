@@ -29,3 +29,9 @@ $file | Export-Csv -NoTypeInformation -Path "$current_dir\base64.inverted.csv" -
 $text = [System.IO.File]::ReadAllLines("$current_dir\base64.inverted.csv", $UTF8BOM_yes)
 
 [System.IO.File]::WriteAllLines("$current_dir\base64.inverted.csv", $text, $UTF8BOM__no)
+
+$a = "кириллица"
+$b = [System.Convert]::ToBase64String($UTF8BOM__no.GetBytes($a))
+$c = $UTF8BOM__no.GetString([System.Convert]::FromBase64String($b))
+$a, $b, $c
+[System.IO.File]::WriteAllLines("$current_dir\base64.txt", ($a, $b, $c), $UTF8BOM__no)
