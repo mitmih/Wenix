@@ -5,7 +5,7 @@ $current_dir = $MyInvocation.MyCommand.Definition | Split-Path -Parent ; Set-Loc
 
 $UTF8BOM__no = New-Object System.Text.UTF8Encoding $false
 
-$UTF8BOM_yes = New-Object System.Text.UTF8Encoding $true
+$UTF8BOM_yes = [System.Text.UTF8Encoding]($true)
 
 
 $file = Import-Csv -Path "$current_dir\base64.csv"
