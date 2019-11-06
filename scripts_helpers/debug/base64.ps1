@@ -39,10 +39,10 @@ $u16 = [System.Text.Encoding]::Unicode
 
 $a = "кириллица"
 
-# $b = [System.Text.Encoding]::Convert($u16, $UTF8BOM__no, $u16.GetBytes($a))  # (source_Encoding, destination_Encoding, source_Bytes)
+$b = [System.Text.Encoding]::Convert($u16, $UTF8BOM__no, $u16.GetBytes($a))  # (source_Encoding, destination_Encoding, source_Bytes)
 
-$c = [System.Convert]::ToBase64String($b)
+$c = $UTF8BOM__no.GetString($b)
 
-$d = $UTF8BOM__no.GetString([System.Convert]::FromBase64String($s.password))
+$d = $UTF8BOM__no.GetBytes($c)
 
-Write-Host $a, $b
+Write-Host $a, $b, $c, $d
