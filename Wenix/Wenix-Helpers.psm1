@@ -170,13 +170,14 @@ function Read-NetConfig  # читает конфиг сетевых источн
                     
                     # при необходимости учётные данные пользователя сетевой папки будут конвертированы из base64 в utf8-no-BOM
                     
-                    $UTF8NoBOM = New-Object System.Text.UTF8Encoding $false
+                    # $UTF8NoBOM = New-Object System.Text.UTF8Encoding $false
+                    $utf16le = [System.Text.Encoding]::Unicode  # файл с данными авторизации теперь хранит unicode-строки кодированные в base64, поэтому раскодировать их тоже нужно в unicode, иначе появляются ненужные байты между символами
                     
-                    try { $s.user     = $UTF8NoBOM.GetString([System.Convert]::FromBase64String($s.user    )) }
+                    try { $s.user     = $utf16le.GetString([System.Convert]::FromBase64String($s.user    )) }
                     
                     catch {}
                     
-                    try { $s.password = $UTF8NoBOM.GetString([System.Convert]::FromBase64String($s.password)) }
+                    try { $s.password = $utf16le.GetString([System.Convert]::FromBase64String($s.password)) }
                     
                     catch {}
                     
