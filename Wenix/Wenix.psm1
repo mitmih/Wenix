@@ -47,8 +47,9 @@ function Use-Wenix  # главный поток исполнения скрип�
                     {
                         $shares += $NetConfig | Read-NetConfig
                         
+                        $ip = (ipconfig | Select-String -Pattern 'ipv4')  # предполагается только одно совпадение (один сетевой адрес, полученный по dhcp)
                         
-                        Write-Host ("{0,5:N1} minutes {1} {2,45}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig', ('IP  ' + (ipconfig | Select-String -Pattern 'ipv4').ToString().Split(':')[1].Trim()) ) #_#
+                        Write-Host ("{0,5:N1} minutes {1} {2,45}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig', ('IP  ' + $(if ($null -ne $ip) {$ip.ToString().Split(':')[1].Trim()} else {'---.---.---.---'}) )  ) #_#
                         
                         
                         $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot'    -SharesList $shares
