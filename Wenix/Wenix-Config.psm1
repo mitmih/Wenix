@@ -10,7 +10,7 @@ $volumes = [ordered] @{  # схема разбивки ЖД
 }
 
 # TODO: в случае нескольких дисков нужно показывать инфу по дискам и давать пользователю выбор индекса целевого диска, наподобие Show-Menu
-$DiskNumber = 0  # работа всегда идёт с первым диском в системе
+$DiskNumber = -1  # работа всегда идёт с первым диском в системе
 
 
 $BootStrap = '.IT\PE\BootStrap.csv'  # NetWork Shares access configuration file
