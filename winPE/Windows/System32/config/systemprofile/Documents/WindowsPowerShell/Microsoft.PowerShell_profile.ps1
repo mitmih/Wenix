@@ -1,5 +1,32 @@
 # https://docs.microsoft.com/ru-ru/powershell/scripting/core-powershell/ise/how-to-use-profiles-in-windows-powershell-ise?view=powershell-6
 
+function Update-Wenix  # поиск и импорт более свежей версии модуля
+{
+    param ([switch] $reload = $false)
+    
+    
+    Import-Module -Force Wenix -Variable 'ModulePath'
+    
+    $FindedModules = @()
+    
+    foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
+    {
+        $w = $v.DriveLetter + ':\' + $ModulePath
+        
+        if (Test-Path -Path $w) { $FindedModules += Get-Module -ListAvailable "$w" }
+    }
+    
+    if ( ($FindedModules | Sort-Object -Property 'Version' | Select-Object -Last 1).Version -gt (Get-Module -Name 'Wenix').Version )
+    {
+        Copy-Item -Recurse -Force -Path ($FindedModules.Path | Split-Path -Parent) -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
+    }
+    
+    if ($reload)
+    {
+        Import-Module -Force Wenix
+        (Get-Module -Name 'Wenix').Version
+    }
+}
 
 
 # $LabelIn = "(win.*7)|(win.*10)"  # 'win7' / 'win 7' / 'win10' / 'win 10' - метка диска с ОС-источником wim-образа
@@ -14,7 +41,7 @@
 # $wimDesc  = "by alt-air"         # описание wim-образа
 
 
-# foreach ($d in (Get-PSProvider -PSProvider FileSystem).Drives)
+# foreach ($d in (Get-PSProvider -PSProvider FileSystem).Drives) 
 # {
 #     if ($d.Description -match $LabelIn)  {$inp = $d.Root}  # определили по метке диск-источник ОС
     
@@ -29,16 +56,13 @@ Set-PSReadlineKeyHandler -Chord Ctrl+d -Function DeleteCharOrExit  # выход 
 Set-PSReadlineKeyHandler -Chord Ctrl+f -ScriptBlock {  # запуск Far
     $d = "$env:SystemDrive"
     
-    # if (Test-Path -Path "$env:SystemDrive\Debug-Mount_Z.cmd")
-    # {
-    #     . "$env:SystemDrive\Debug-Mount_Z.cmd"
-        
-    #     if (Test-Path -Path 'Z:\') { $d = 'Z:' }
-    # }
-    
     Start-Process -FilePath "$env:SystemDrive\Far\Far.exe" -ArgumentList "$d $env:WinDir\System32\config\systemprofile\Documents\WindowsPowerShell\Modules\"
 }
 
+
+Set-PSReadlineKeyHandler -Chord Ctrl+Alt+u -ScriptBlock {  # поиск и импорт свежей версии Wenix`а
+    Update-Wenix -reload
+}
 
 # Set-PSReadlineKeyHandler -Chord Ctrl+i -ScriptBlock {
 # # захват образа на USB drive
@@ -85,30 +109,9 @@ Start-Process -FilePath "$env:SystemRoot\System32\startnet.cmd"
 
 Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
 
+Write-Host -ForegroundColor Magenta "Alt + Ctrl + u to Update-Wenix"
 
 # запуск меню
-function Update-Wenix  # поиск и импорт более свежей версии модуля
-{
-    param ()
-    
-    
-    Import-Module -Force Wenix -Variable 'ModulePath'
-    
-    $FindedModules = @()
-    
-    foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
-    {
-        $w = $v.DriveLetter + ':\' + $ModulePath
-        
-        if (Test-Path -Path $w) { $FindedModules += Get-Module -ListAvailable "$w" }
-    }
-    
-    if ( ($FindedModules | Sort-Object -Property 'Version' | Select-Object -Last 1).Version -gt (Get-Module -Name 'Wenix').Version )
-    {
-        Copy-Item -Recurse -Force -Path ($FindedModules.Path | Split-Path -Parent) -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
-    }
-}
-
 Update-Wenix
 
 
