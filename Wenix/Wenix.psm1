@@ -162,19 +162,19 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         if (!$log['backup ramdisk in memory']) { return }  # нет бэкапа RAM-диска - нет смысла продолжать т.к. не будет возможности хотя бы загрузиться с PE
                         
-                        if ($STOP) { return }  #################################
+                        if ($STOP) { return }  # для запуска через Wenix-Debug.ps1
+                        
+                        Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage PE RAM-disk backuped in memory') #_#
                         
                         #endregion
                         
                         
                         #region Clear-Disk, restore RAM-disk PE from memory, renew boot menu
                         
-                        Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
-                        
-                        $volPELetter = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolPE'].label}).DriveLetter
-                        
                         if ( $DiskIsOK )  # remove all (except .IT dir) # overwrite with the latest found win PE boot.wim
                         {
+                            $volPELetter = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolPE'].label}).DriveLetter
+                            
                             Get-Item -Path ('{0}:\*' -f $volPELetter) -Exclude '.IT' -Force | Remove-Item -Force -Recurse  # очистка 'PE'-тома
                             
                             Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Mount-Standart') #_#
@@ -183,12 +183,14 @@ function Use-Wenix  # главный поток исполнения скрип�
                         {
                             $log['Edit-PartitionTable'] = Edit-PartitionTable
                             
+                            $volPELetter = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolPE'].label}).DriveLetter
+                            
                             Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Edit-PartitionTable') #_#
                         }
                         
                         
                         
-                        Set-PSBreakpoint -Command Install-Wim
+                        # Set-PSBreakpoint -Command Install-Wim
                         
                         
                         

@@ -222,34 +222,32 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
     
     process
     {
-        try
+        foreach ($v in $volumes.GetEnumerator())
         {
-            foreach ($v in $volumes.GetEnumerator())
-            {
-                # $UNCPath = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Path  # UNC-путь к тому/разделу, если метки совпали
-                
-                
-                # if ($UNCPath)  # размер раздела (отличается от размера тома !!!)
-                # {
+            # $UNCPath = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Path  # UNC-путь к тому/разделу, если метки совпали
+            
+            
+            # if ($UNCPath)  # размер раздела (отличается от размера тома !!!)
+            # {
                 #     $PartSize = (Get-Partition -DiskNumber $DiskNumber -ErrorAction Stop | Where-Object {$_.AccessPaths -icontains $UNCPath}).Size
                 # }
                 # else { $PartSize = 0 }
                 
-                
-                $PartSize = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Size
-                
-                
-                if ($PartSize)
-                {
-                    $CheckList[$v.Key] = if ($v.Value.size -gt 0) {$v.Value.size -eq $PartSize } else { $true }
-                }
-                else { $CheckList[$v.Key] = $false }
+            try
+            {
+                $PartSize = (Get-Partition -DiskNumber $DiskNumber -ErrorAction Stop | Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Size
             }
-        }
-        
-        catch
-        {
-            $CheckList['Get-Partition'] = $false
+            
+            catch
+            {
+                $CheckList[$v.Key] = $false
+            }
+            
+            if ($PartSize)
+            {
+                $CheckList[$v.Key] = if ($v.Value.size -gt 0) {$v.Value.size -eq $PartSize } else { $false }
+            }
+            else { $CheckList[$v.Key] = $false }
         }
         
         
@@ -506,7 +504,7 @@ function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> н
                 
                 bcdedit  /store $bcd /delete '{default}' /cleanup | Out-Null  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
                 
-                Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "$OSletter\Windows"#, "/s $PEletter", "/f ALL"
+                Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "$OSletter\Windows", "/s $PEletter", "/f ALL"
                 
                 $res = $true
             }
