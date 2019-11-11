@@ -487,7 +487,10 @@ function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> н
             }
             elseif ( (Test-Path -Path "$PEletter\.IT\$ver\install.wim") )
             {
-                $null = Format-Volume -FileSystemLabel $volumes['VolOS'].label -NewFileSystemLabel $volumes['VolOS'].label -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
+                $null = Get-Partition -DiskNumber $DiskNumber | 
+                    Get-Volume | 
+                    Where-Object { $_.FileSystemLabel -eq $volumes['VolOS'].label} | 
+                    Format-Volume -NewFileSystemLabel $volumes['VolOS'].label -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
                 $null = Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 <# -Verify #> -ErrorAction Stop
                 
