@@ -224,15 +224,6 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
     {
         foreach ($v in $volumes.GetEnumerator())
         {
-            # $UNCPath = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Path  # UNC-путь к тому/разделу, если метки совпали
-            
-            
-            # if ($UNCPath)  # размер раздела (отличается от размера тома !!!)
-            # {
-                #     $PartSize = (Get-Partition -DiskNumber $DiskNumber -ErrorAction Stop | Where-Object {$_.AccessPaths -icontains $UNCPath}).Size
-                # }
-                # else { $PartSize = 0 }
-                
             try
             {
                 $PartSize = (Get-Partition -DiskNumber $DiskNumber -ErrorAction Stop | Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Size
@@ -520,28 +511,44 @@ function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> н
 
 function Copy-WithCheck  # копирует из папки в папку с проверкой md5
 {
-    param ( $from, $to, $retry = 2, $net = $null )
+    param ( $from, $to, $retry = 2 )
     
     
     if ($from.Trim() -eq $to.Trim()) { return $true }
     
-    $res = @()
     
     try
     {
-        $filesFrom = (Get-ChildItem -Path $from -Recurse -Force -ErrorAction Stop | Get-FileHash -Algorithm MD5 -ErrorAction Stop)
+        $SourceFiles = (Get-ChildItem -Path $from -Recurse -Force -ErrorAction Stop | Get-FileHash -Algorithm MD5 -ErrorAction Stop)
         
-        if( !(Test-Path -Path $to) ) { New-Item -ItemType Directory -Path $to -ErrorAction Stop}
         
         for ($i = 0; $i -lt $retry; $i++)  # несколько попыток копирования
         {
-            foreach ($file in $filesFrom)
+            $res = @()  # результаты сравнения md5 исходного и скопированного файлов, должны быть только $True
+            
+            
+            foreach ($group in $SourceFiles | Split-Path -Parent | Group-Object)
+            # готовим структуру папок 1-в-1
             {
-                $name = $file[0].Path.Split('\')[-1]
+                if ($from -eq $group.Name)  # корневая папка
+                {
+                    if ( !(Test-Path -Path $to) ) { New-Item -ItemType Directory -Path $to -ErrorAction Stop}
+                }
+                else  # вложенные папки
+                {
+                    $subdir = ( $to + $group.Name.Replace($from,'') )
+                    
+                    if ( !(Test-Path -Path $subdir) ) { New-Item -ItemType Directory -Path $subdir -ErrorAction Stop}
+                }
+            }
+            
+            
+            foreach ($file in $SourceFiles)
+            # копируем файлы 1-в-1
+            {
+                Copy-Item -Force -Path $file.Path -Destination ($to + $file.Path.Replace($from,'')) -ErrorAction Stop
                 
-                Copy-Item -Force -Path $file.Path -Destination "$to\$name" -ErrorAction Stop
-                
-                $res += (Get-FileHash -Algorithm MD5 -Path "$to\$name").Hash -eq $file.Hash
+                $res += ( Get-FileHash -Algorithm MD5 -Path ($to + $file.Path.Replace($from,'')) ).Hash -eq $file.Hash
             }
             
             if ($res -notcontains $false) { break }  # копирование было успешным
@@ -659,7 +666,7 @@ function Add-Junctions7  # в Windows 7 алгоритм назначения gu
     
     # 'start "" /b explorer.exe "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
-    'timeout /t 5' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    'timeout /t 55' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
     'erase /f /q "%~dpnx0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
 }
@@ -685,7 +692,7 @@ function Select-TargetDisk  # функция получает инфо по ди
     {
         $drives +=  (
             Get-Disk |
-            Where-Object {$_.BusType -inotmatch 'usb 11'} |
+            Where-Object {$_.BusType -inotmatch 'usb'} |
             Select-Object -Property `
                 @{Name = 'N';           Expression = {$_.DiskNumber}},
                 @{Name = 'type';        Expression = {$_.BusType}},

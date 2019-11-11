@@ -250,7 +250,8 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         Start-Sleep -Seconds 13
                         
-                        Restart-Computer -Force
+                        if ($Global:DiskNumber -eq 0) { Restart-Computer -Force }
+                        else                          { Stop-Computer -Force }
                     }
                     else { return }  # ок -> перезагрузка, иначе - отладка
                 }
