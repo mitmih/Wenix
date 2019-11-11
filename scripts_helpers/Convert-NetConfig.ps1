@@ -2,7 +2,7 @@
 чтобы кириллическая строка корректно присваиваивалась переменной
 текст скрипта должен быть в кодировке UTF-16 LE (1200 utf-16 Unicode)
     https://docs.microsoft.com/ru-ru/powershell/scripting/components/vscode/understanding-file-encoding?view=powershell-6
-
+    
     # $UTF8BOM__no = New-Object System.Text.UTF8Encoding $false
     # $UTF8BOM_yes = [System.Text.UTF8Encoding]($true)
     # # перекодировка фа utf8_BOM >>> utf8_no_BOM
