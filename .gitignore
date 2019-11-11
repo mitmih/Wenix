@@ -21,4 +21,4 @@ BootStrap.csv
 New-NetConfig_AD.csv
 !New-NetConfig_AD.csv.example
 
-_debug/
+_debug/*
