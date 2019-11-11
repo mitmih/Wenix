@@ -1,5 +1,3 @@
-# *.psd1 text working-tree-encoding=UTF-16LE-BOM eol=CRLF
-# * text=auto
-# *.ps1 text diff eol=crlf
-# *.psm1 text diff eol=crlf
-# *.psd1 text diff working-tree-encoding=UTF-16LE-BOM
+NetConfig-Convert.ps1   text working-tree-encoding=UTF-16LE-BOM eol=CRLF
+NetConfig-New.ps1       text working-tree-encoding=UTF-16LE-BOM eol=CRLF
+Wenix.psd1              text working-tree-encoding=UTF-16LE-BOM eol=CRLF

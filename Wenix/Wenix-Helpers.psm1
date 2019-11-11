@@ -170,13 +170,14 @@ function Read-NetConfig  # читает конфиг сетевых источн
                     
                     # при необходимости учётные данные пользователя сетевой папки будут конвертированы из base64 в utf8-no-BOM
                     
-                    $UTF8NoBOM = New-Object System.Text.UTF8Encoding $false
+                    # $UTF8NoBOM = New-Object System.Text.UTF8Encoding $false
+                    $utf16le = [System.Text.Encoding]::Unicode  # файл с данными авторизации теперь хранит unicode-строки кодированные в base64, поэтому раскодировать их тоже нужно в unicode, иначе появляются ненужные байты между символами
                     
-                    try { $s.user     = $UTF8NoBOM.GetString([System.Convert]::FromBase64String($s.user    )) }
+                    try { $s.user     = $utf16le.GetString([System.Convert]::FromBase64String($s.user    )) }
                     
                     catch {}
                     
-                    try { $s.password = $UTF8NoBOM.GetString([System.Convert]::FromBase64String($s.password)) }
+                    try { $s.password = $utf16le.GetString([System.Convert]::FromBase64String($s.password)) }
                     
                     catch {}
                     
@@ -214,7 +215,6 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
 # нужно добавить проверку размеров разделов
 {
     param (
-        $pos = 0,
         [switch]$skip = $false
         )
     
@@ -222,25 +222,23 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
     
     process
     {
-        try
+        foreach ($v in $volumes.GetEnumerator())
         {
-            foreach ($v in $volumes.GetEnumerator())
+            try
             {
-                $UNCPath = (Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Path  # UNC-путь к тому/разделу, если метки совпали
-                
-                $PartSize = (Get-Partition -ErrorAction Stop | Where-Object {$_.AccessPaths -icontains $UNCPath}).Size  # размер раздела (отличается от размера тома !!!)
-                
-                if ($PartSize)
-                {
-                    $CheckList[$v.Key] = if ($v.Value.size -gt 0) {$v.Value.size -eq $PartSize } else { $true }
-                }
-                else { $CheckList[$v.Key] = $false }
+                $PartSize = (Get-Partition -DiskNumber $DiskNumber -ErrorAction Stop | Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Size
             }
-        }
-        
-        catch
-        {
-            $CheckList['Get-Partition'] = $false
+            
+            catch
+            {
+                $CheckList[$v.Key] = $false
+            }
+            
+            if ($PartSize)
+            {
+                $CheckList[$v.Key] = if ($v.Value.size -gt 0) {$v.Value.size -eq $PartSize } else { $false }
+            }
+            else { $CheckList[$v.Key] = $false }
         }
         
         
@@ -395,7 +393,7 @@ function Test-Wim  # ищет / проверяет / возвращает про
 
 function Edit-PartitionTable  # очищает диск полностью и размечает его на разделы согласно $volumes
 {
-    param ( $pos = 0 )
+    param ()
     
     
     begin { $res = $false }
@@ -404,7 +402,7 @@ function Edit-PartitionTable  # очищает диск полностью и р
     {
         try
         {
-            if ('RAW' -eq (Get-Disk -Number 0).PartitionStyle)
+            if ('RAW' -eq (Get-Disk -Number $DiskNumber).PartitionStyle)
             # чистый диск - нужно инициализировать
             {
                 Initialize-Disk -Number $DiskNumber -PartitionStyle MBR
@@ -421,7 +419,7 @@ function Edit-PartitionTable  # очищает диск полностью и р
             foreach ($v in $volumes.GetEnumerator())
             {
                 $params = @{
-                    'DiskNumber'  = $pos
+                    'DiskNumber'  = $DiskNumber
                     'DriveLetter' = $v.Value.letter
                     'ErrorAction' = 'Stop'
                     'IsActive'    = $v.Value.active
@@ -449,9 +447,11 @@ function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> н
     {
         $res = $false
         
-        $PEletter = '{0}:' -f (Get-Volume -FileSystemLabel $volumes['VolPE'].label).DriveLetter
+        $PEletter = '{0}:' -f (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolPE'].label}).DriveLetter
         
-        $OSletter = '{0}:' -f (Get-Volume -FileSystemLabel $volumes['VolOS'].label).DriveLetter
+        $OSletter = '{0}:' -f (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolOS'].label}).DriveLetter
+        
+        $bcd = $PEletter + '\Boot\BCD'
     }
     
     process
@@ -466,36 +466,39 @@ function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> н
                 
                 
                 # make RAM Disk object
-                bcdedit /create '{ramdiskoptions}' /d 'Windows PE RAM Disk' | Out-Null
-                bcdedit /set    '{ramdiskoptions}' ramdisksdidevice "partition=$PEletter" | Out-Null
-                bcdedit /set    '{ramdiskoptions}' ramdisksdipath '\.IT\PE\boot.sdi' | Out-Null
-                (bcdedit /create /d "Windows PE RAM Disk" /application osloader) -match '\{.*\}' | Out-Null  # "The entry '{e1679017-bc5a-11e9-89cf-a91b7c7227b0}' was successfully created."
+                bcdedit  /store $bcd /create '{ramdiskoptions}' /d 'Windows PE RAM Disk' | Out-Null
+                bcdedit  /store $bcd /set    '{ramdiskoptions}' ramdisksdidevice "partition=$PEletter" | Out-Null
+                bcdedit  /store $bcd /set    '{ramdiskoptions}' ramdisksdipath '\.IT\PE\boot.sdi' | Out-Null
+                (bcdedit /store $bcd /create /d "Windows PE RAM Disk" /application osloader) -match '\{.*\}' | Out-Null  # "The entry '{e1679017-bc5a-11e9-89cf-a91b7c7227b0}' was successfully created."
                 $guid = $Matches[0]
                 
                 # make OS loader object
-                bcdedit /set $guid   device "ramdisk=[$PEletter]\.IT\PE\boot.wim,{ramdiskoptions}" | Out-Null
-                bcdedit /set $guid osdevice "ramdisk=[$PEletter]\.IT\PE\boot.wim,{ramdiskoptions}" | Out-Null
-                bcdedit /set $guid path '\Windows\System32\Boot\winload.exe' | Out-Null
-                bcdedit /set $guid systemroot '\Windows' | Out-Null
-                bcdedit /set $guid winpe yes | Out-Null
-                bcdedit /set $guid detecthal yes | Out-Null
+                bcdedit  /store $bcd /set $guid   device "ramdisk=[$PEletter]\.IT\PE\boot.wim,{ramdiskoptions}" | Out-Null
+                bcdedit  /store $bcd /set $guid osdevice "ramdisk=[$PEletter]\.IT\PE\boot.wim,{ramdiskoptions}" | Out-Null
+                bcdedit  /store $bcd /set $guid path '\Windows\System32\Boot\winload.exe' | Out-Null
+                bcdedit  /store $bcd /set $guid systemroot '\Windows' | Out-Null
+                bcdedit  /store $bcd /set $guid winpe yes | Out-Null
+                bcdedit  /store $bcd /set $guid detecthal yes | Out-Null
                 
-                bcdedit /displayorder $guid /addfirst | Out-Null  # + PE RAM-disk boot menu entry
-                bcdedit /delete '{default}' /cleanup | Out-Null
+                bcdedit  /store $bcd /displayorder $guid /addfirst | Out-Null  # + PE RAM-disk boot menu entry
+                bcdedit  /store $bcd /delete '{default}' /cleanup | Out-Null
                 
                 $res = $true
             }
             elseif ( (Test-Path -Path "$PEletter\.IT\$ver\install.wim") )
             {
-                $null = Format-Volume -FileSystemLabel $volumes['VolOS'].label -NewFileSystemLabel $volumes['VolOS'].label -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
+                $null = Get-Partition -DiskNumber $DiskNumber | 
+                    Get-Volume | 
+                    Where-Object { $_.FileSystemLabel -eq $volumes['VolOS'].label} | 
+                    Format-Volume -NewFileSystemLabel $volumes['VolOS'].label -ErrorAction Stop  # из-за ошибки "Access denied" при установке 10ки на 10ку
                 
                 $null = Expand-WindowsImage -ImagePath "$PEletter\.IT\$ver\install.wim" -ApplyPath "$OSletter\" -Index 1 <# -Verify #> -ErrorAction Stop
                 
                 # Start-Process -Wait -FilePath 'dism.exe' -ArgumentList '/Apply-Image', "/ImageFile:$PEletter\.IT\$ver\install.wim", "/ApplyDir:$OSletter\", '/Index:1'
                 
-                bcdedit /delete '{default}' /cleanup | Out-Null  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
+                bcdedit  /store $bcd /delete '{default}' /cleanup | Out-Null  # remove default entry (boot PE from HD or old OS), leave only RAMDisk`s entry
                 
-                Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "$OSletter\Windows"
+                Start-Process -Wait -FilePath "$env:windir\System32\BCDboot.exe" -ArgumentList "$OSletter\Windows", "/s $PEletter", "/f ALL"
                 
                 $res = $true
             }
@@ -511,28 +514,44 @@ function Install-Wim  # равёртывает wim-файлы: PE boot.wim -> н
 
 function Copy-WithCheck  # копирует из папки в папку с проверкой md5
 {
-    param ( $from, $to, $retry = 2, $net = $null )
+    param ( $from, $to, $retry = 2 )
     
     
     if ($from.Trim() -eq $to.Trim()) { return $true }
     
-    $res = @()
     
     try
     {
-        $filesFrom = (Get-ChildItem -Path $from -Recurse -Force -ErrorAction Stop | Get-FileHash -Algorithm MD5 -ErrorAction Stop)
+        $SourceFiles = (Get-ChildItem -Path $from -Recurse -Force -ErrorAction Stop | Get-FileHash -Algorithm MD5 -ErrorAction Stop)
         
-        if( !(Test-Path -Path $to) ) { New-Item -ItemType Directory -Path $to -ErrorAction Stop}
         
         for ($i = 0; $i -lt $retry; $i++)  # несколько попыток копирования
         {
-            foreach ($file in $filesFrom)
+            $res = @()  # результаты сравнения md5 исходного и скопированного файлов, должны быть только $True
+            
+            
+            foreach ($group in $SourceFiles | Split-Path -Parent | Group-Object)
+            # готовим структуру папок 1-в-1
             {
-                $name = $file[0].Path.Split('\')[-1]
+                if ($from -eq $group.Name)  # корневая папка
+                {
+                    if ( !(Test-Path -Path $to) ) { New-Item -ItemType Directory -Path $to -ErrorAction Stop}
+                }
+                else  # вложенные папки
+                {
+                    $subdir = ( $to + $group.Name.Replace($from,'') )
+                    
+                    if ( !(Test-Path -Path $subdir) ) { New-Item -ItemType Directory -Path $subdir -ErrorAction Stop}
+                }
+            }
+            
+            
+            foreach ($file in $SourceFiles)
+            # копируем файлы 1-в-1
+            {
+                Copy-Item -Force -Path $file.Path -Destination ($to + $file.Path.Replace($from,'')) -ErrorAction Stop
                 
-                Copy-Item -Force -Path $file.Path -Destination "$to\$name" -ErrorAction Stop
-                
-                $res += (Get-FileHash -Algorithm MD5 -Path "$to\$name").Hash -eq $file.Hash
+                $res += ( Get-FileHash -Algorithm MD5 -Path ($to + $file.Path.Replace($from,'')) ).Hash -eq $file.Hash
             }
             
             if ($res -notcontains $false) { break }  # копирование было успешным
@@ -579,7 +598,7 @@ function Set-NextBoot  # перезагрузка в дефолт-пункт (ч
     param ()
     
     
-    foreach ($v in (Get-Partition -DiskNumber 0 | Where-Object {$_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
+    foreach ($v in (Get-Partition -DiskNumber $DiskNumber | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
     {
         $p = $v.DriveLetter + ':\Boot\BCD'
         
@@ -636,7 +655,9 @@ function Add-Junctions7  # в Windows 7 алгоритм назначения gu
     
     $encodedCommand = [Convert]::ToBase64String($bytes)
     
-    $AutoRun = (Get-Volume -FileSystemLabel $volumes['VolOS'].label).DriveLetter + ':\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd'
+    $volOSLetter = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolOS'].label}).DriveLetter
+    
+    $AutoRun = '{0}:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd' -f $volOSLetter
     
     '@echo off' | Out-File -Encoding ascii -FilePath $AutoRun
     
@@ -648,7 +669,76 @@ function Add-Junctions7  # в Windows 7 алгоритм назначения gu
     
     # 'start "" /b explorer.exe "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
-    'timeout /t 5' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    'timeout /t 55' | Out-File -Encoding ascii -FilePath $AutoRun -Append
     
     'erase /f /q "%~dpnx0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+}
+
+
+function Select-TargetDisk  # функция получает инфо по дискам и в случае нескольких дисков предлагает выбрать целевой для развёртывания Wenix
+{
+    param ()
+    
+    begin
+    {
+        $MenuText = @(
+            "Please enter disk`s N for Wenix deployment"
+            "for example, type '0' or '1' and press 'Enter' key"
+        )
+        
+        $drives = @()
+        
+        $SelectedDisk = $null
+    }
+    
+    process
+    {
+        $drives +=  (
+            Get-Disk |
+            Where-Object {$_.BusType -inotmatch 'usb'} |
+            Select-Object -Property `
+                @{Name = 'N';           Expression = {$_.DiskNumber}},
+                @{Name = 'type';        Expression = {$_.BusType}},
+                @{Name = 'size';        Expression = {('{0,4:N0} GB' -f ($_.Size / 1GB))}},
+                @{Name = 'name';        Expression = {$_.FriendlyName}},
+                @{Name = 'tbl';         Expression = {$_.PartitionStyle}},
+                @{Name = 'PartCount';   Expression = {$_.NumberOfPartitions}}
+        )
+        
+        if ($drives.Count -ne 1)
+        {
+            $cycle = $true ; while ( $cycle )
+            {
+                $drives | Format-Table -Property * | Out-Default
+                
+                $MenuText | Out-Default
+                
+                $sel = Read-Host  # ожидаем ввода числа - номера диска
+                
+                try  # попытка преобразовать ввод пользователя в целое число - номер диска
+                {
+                    $sel = [int] $sel
+                }
+                catch  # one more time...
+                {
+                    "cannot find the DiskNumber '$sel', please try again...`n" | Out-Default
+                    
+                    continue
+                }
+                
+                if ($sel -in $drives.N)
+                {
+                    $SelectedDisk = $drives | Where-Object {$_.N -eq $sel}
+                    
+                    $cycle = $false
+                }
+                else { continue }
+            }
+        } else { $SelectedDisk = $drives | Where-Object {$_.N -eq 0} }
+    }
+    
+    end
+    {
+        return $SelectedDisk
+    }
 }

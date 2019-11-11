@@ -3,11 +3,16 @@ Import-Module -Force -Verbose Wenix
 Get-Module -Name Wenix
 
 
-$NetConfig = Find-NetConfig
+Copy-WithCheck -from 'E:\.IT\PE' -to 'D:\.IT\PE'
 
-$res = $NetConfig | Read-NetConfig
 
-$res
+# $NetConfig = Find-NetConfig
+
+# $res = $NetConfig | Read-NetConfig
+
+# $res
+
+
 # $PEloc = Test-WimNet -md5 -ver 'PE' -name 'boot'    
 # $OSloc = Test-WimNet -md5 -ver '10' -name 'install' 
 

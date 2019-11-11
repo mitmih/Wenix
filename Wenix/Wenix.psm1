@@ -33,7 +33,16 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     $ver = if ( $_ -in @( 'D7', 'NumPad7' ) ) { '7' } else { '10' }  # 7 -> развёртывание Windows 7 install.wim, # 0 -> развёртывание Windows 10 install.wim
                     
-                    $Disk0isOk = Test-Disk
+                    $TargetDisk = Select-TargetDisk  # выбор целевого диска
+                    
+                    $Global:DiskNumber = $TargetDisk.N  # номер выбранного диска, нумерация с 0
+                    
+                    Write-Host ("{0,5:N1} minutes {1} {2} {3} {4}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'selected disk', $TargetDisk.N, $TargetDisk.size, $TargetDisk.name) #_#
+                    
+                    $TargetDisk | Format-Table -Property * | Out-Default  # вывод информации по выбранному диску
+                    
+                    
+                    $DiskIsOK = Test-Disk
                     
                     
                     #region  сетевые источники
@@ -47,8 +56,9 @@ function Use-Wenix  # главный поток исполнения скрип�
                     {
                         $shares += $NetConfig | Read-NetConfig
                         
+                        $ip = (ipconfig | Select-String -Pattern 'ipv4')  # предполагается только одно совпадение (один сетевой адрес, полученный по dhcp)
                         
-                        Write-Host ("{0,5:N1} minutes {1} {2,45}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig', ('IP  ' + (ipconfig | Select-String -Pattern 'ipv4').ToString().Split(':')[1].Trim()) ) #_#
+                        Write-Host ("{0,5:N1} minutes {1} {2,45}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Read-NetConfig', ('IP  ' + $(if ($null -ne $ip) {$ip.ToString().Split(':')[1].Trim()} else {'---.---.---.---'}) )  ) #_#
                         
                         
                         $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot'    -SharesList $shares
@@ -70,15 +80,15 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     #region локальные источники
                     
-                    if ($Disk0isOk)  # источники с этого диска бесполезны, т.к. ему нужна переразбивка
+                    if ($DiskIsOK)
                     {
-                        $LettersExclude = @()  # буквы дисков, на которых ненужно искать wim-файлы
+                        $LettersExclude = @()  # буквы томов, которые исчезнут в процессе работы, поэтому их нельзя использовать для поиска источников wim-файлов
                     }
-                    else
+                    else  # источники с этого диска бесполезны, т.к. ему нужна переразбивка
                     {
                         try
                         {
-                            $LettersExclude = (Get-Partition -ErrorAction Stop -DiskNumber 0 | Where-Object {'' -ne $_.DriveLetter}).DriveLetter
+                            $LettersExclude = (Get-Partition -ErrorAction Stop -DiskNumber $DiskNumber | Where-Object {'' -ne $_.DriveLetter}).DriveLetter
                         }
                         catch
                         {
@@ -87,7 +97,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                     }
                     
                     
-                    $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot' #-exclude $LettersExclude
+                    $Sourses += Test-Wim -md5 -ver 'PE' -name 'boot' -exclude $LettersExclude
                     
                     Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Wim local PE') #_#
                     
@@ -152,18 +162,20 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         if (!$log['backup ramdisk in memory']) { return }  # нет бэкапа RAM-диска - нет смысла продолжать т.к. не будет возможности хотя бы загрузиться с PE
                         
-                        if ($STOP) { return }  #################################
+                        if ($STOP) { return }  # для запуска через Wenix-Debug.ps1
+                        
+                        Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage PE RAM-disk backuped in memory') #_#
                         
                         #endregion
                         
                         
                         #region Clear-Disk, restore RAM-disk PE from memory, renew boot menu
                         
-                        Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Test-Disk') #_#
-                        
-                        if ( $Disk0isOk )  # remove all (except .IT dir) # overwrite with the latest found win PE boot.wim
+                        if ( $DiskIsOK )  # remove all (except .IT dir) # overwrite with the latest found win PE boot.wim
                         {
-                            Get-Item -Path ('{0}:\*' -f (Get-Volume -FileSystemLabel $volumes['VolPE'].label).DriveLetter) -Exclude '.IT' -Force | Remove-Item -Force -Recurse  # очистка 'PE'-тома
+                            $volPELetter = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolPE'].label}).DriveLetter
+                            
+                            Get-Item -Path ('{0}:\*' -f $volPELetter) -Exclude '.IT' -Force | Remove-Item -Force -Recurse  # очистка 'PE'-тома
                             
                             Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Mount-Standart') #_#
                         }
@@ -171,11 +183,18 @@ function Use-Wenix  # главный поток исполнения скрип�
                         {
                             $log['Edit-PartitionTable'] = Edit-PartitionTable
                             
+                            $volPELetter = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolPE'].label}).DriveLetter
+                            
                             Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Edit-PartitionTable') #_#
                         }
                         
                         
-                        if ( (Copy-WithCheck -from 'X:\.IT\PE' -to ('{0}:\.IT\PE' -f (Get-Volume -FileSystemLabel $volumes['VolPE'].label).DriveLetter) ) )
+                        
+                        # Set-PSBreakpoint -Command Install-Wim
+                        
+                        
+                        
+                        if ( (Copy-WithCheck -from 'X:\.IT\PE' -to ('{0}:\.IT\PE' -f $volPELetter) ) )
                         # copy PE folder back to the 'PE' volume # apply copied boot.wim to the 'PE' volume
                         {
                             $log['Install-Wim PE'] = (Install-Wim -ver 'PE')
@@ -184,6 +203,8 @@ function Use-Wenix  # главный поток исполнения скрип�
                         }
                         else { $log['restore RAM-disk from X:'] = $false }  # errors raised during copying - требуется внимание специалиста
                         
+                        if ($log['Install-Wim PE']) { Remove-Item -Path 'X:\.IT\PE' -Recurse -Force }  # подчистим рам-диск - на системах с 2GB RAM высока вероятность сбоя развёртывания install.wim`ов из-за нехватки оперативной памяти
+                        
                         #endregion
                         
                         
@@ -191,7 +212,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         foreach ( $wim in ($Sourses | Where-Object {$_.OS -eq $ver}) )
                         {
-                            $to = '{0}:\.IT\{1}' -f (Get-Volume -FileSystemLabel $volumes['VolPE'].label).DriveLetter, $ver
+                            $to = '{0}:\.IT\{1}' -f $volPELetter, $ver
                             
                             $copy = Copy-WithCheck -from $wim.Root -to $to
                             
@@ -199,6 +220,8 @@ function Use-Wenix  # главный поток исполнения скрип�
                             
                             if ( $copy ) { break }
                         }
+                        
+                        [System.GC]::Collect()  # todo: разобраться как работает сборка мусора [System.GC]::Collect(), нужно ли искать/проверять/удалять перед этим ненужные переменные
                         
                         $log['Install-Wim OS'] = (Install-Wim -ver $ver <# -wim $wim.FilePath #>)
                         
@@ -227,7 +250,8 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         Start-Sleep -Seconds 13
                         
-                        Restart-Computer -Force
+                        if ($Global:DiskNumber -eq 0) { Restart-Computer -Force }
+                        else                          { Stop-Computer -Force }
                     }
                     else { return }  # ок -> перезагрузка, иначе - отладка
                 }
