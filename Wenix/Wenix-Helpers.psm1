@@ -31,9 +31,18 @@ function Show-Menu  # отображает меню
     
     begin
     {
+        if (Test-Path -Path $Global:WenixBootWimVerTempFile)
+        {
+            $ver = Get-Content $Global:WenixBootWimVerTempFile
+        }
+        else
+        {
+            $ver = '0.0.0.0'
+        }
+        
         $MenuText = @(
-            ""
-            "Wenix version $((Get-Module -Name Wenix).Version.ToString())"
+            ''
+            "Wenix ramdisk version {0} was updated to {1}" -f $ver, (Get-Module -Name Wenix).Version.ToString()
             ""
             "Please press specified key to select action:"
             ""

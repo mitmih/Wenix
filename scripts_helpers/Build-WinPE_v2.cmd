@@ -239,7 +239,9 @@ REM добавление ПО, Wenix
             
             ren "%wd%\%arc%\media\sources\boot.wim" boot0.wim
             
-            dism /Export-image /SourceImageFile:"%wd%\%arc%\media\sources\boot0.wim" /SourceIndex:1 /DestinationImageFile:"%wd%\%arc%\media\sources\boot.wim" /compress:max
+            dism /Export-image /SourceImageFile:"%wd%\%arc%\media\sources\boot0.wim" /SourceIndex:1 /DestinationImageFile:"%wd%\%arc%\media\sources\boot.wim" /compress:max /CheckIntegrity
+            REM /DestinationName:"Wenix version a.b.c.d"
+            
             
             del "%wd%\%arc%\media\sources\boot0.wim" /F /Q
             

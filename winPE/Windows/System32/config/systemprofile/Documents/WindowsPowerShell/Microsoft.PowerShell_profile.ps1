@@ -1,5 +1,6 @@
 # https://docs.microsoft.com/ru-ru/powershell/scripting/core-powershell/ise/how-to-use-profiles-in-windows-powershell-ise?view=powershell-6
 
+
 function Update-Wenix  # поиск и импорт более свежей версии модуля
 {
     param ([switch] $reload = $false)
@@ -21,99 +22,55 @@ function Update-Wenix  # поиск и импорт более свежей ве
         Copy-Item -Recurse -Force -Path ($FindedModules.Path | Split-Path -Parent) -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
     }
     
-    if ($reload)
-    {
-        Import-Module -Force Wenix
-        (Get-Module -Name 'Wenix').Version
-    }
+    if ($reload) { Import-Module Wenix -Force }
 }
 
 
-# $LabelIn = "(win.*7)|(win.*10)"  # 'win7' / 'win 7' / 'win10' / 'win 10' - метка диска с ОС-источником wim-образа
-
-# $LabelOut = "alt-air"            # метка диска для сохранения файла install.wim
-
-
-# $wimFile  = "install.wim"        # файл wim-образа
-
-# $wimName  = "Win 10 Pro x64"     # имя wim-образа
-
-# $wimDesc  = "by alt-air"         # описание wim-образа
-
-
-# foreach ($d in (Get-PSProvider -PSProvider FileSystem).Drives) 
-# {
-#     if ($d.Description -match $LabelIn)  {$inp = $d.Root}  # определили по метке диск-источник ОС
+#region Hot Key Definition
     
-#     if ($d.Description -match $LabelOut) {$out = $d.Root}  # определили по метке диск для сохранения wim-образа
-# }
-
-
-
-Set-PSReadlineKeyHandler -Chord Ctrl+d -Function DeleteCharOrExit  # выход по сочетанию Ctrl + D
-
-
-Set-PSReadlineKeyHandler -Chord Ctrl+f -ScriptBlock {  # запуск Far
-    $d = "$env:SystemDrive"
+    # выход по сочетанию Ctrl + D
+    Set-PSReadlineKeyHandler -Chord Ctrl+d -Function DeleteCharOrExit
     
-    Start-Process -FilePath "$env:SystemDrive\Far\Far.exe" -ArgumentList "$d $env:WinDir\System32\config\systemprofile\Documents\WindowsPowerShell\Modules\"
-}
+    
+    # запуск Far
+    Set-PSReadlineKeyHandler -Chord Ctrl+f -ScriptBlock { Start-Process -FilePath "$env:SystemDrive\Far\Far.exe" -ArgumentList "$env:SystemDrive $env:WinDir\System32\config\systemprofile\Documents\WindowsPowerShell\Modules\" }
+    
+    
+    # поиск / импорт свежей версии Wenix`а
+    Set-PSReadlineKeyHandler -Chord Ctrl+u -ScriptBlock { Update-Wenix -reload }
+    
+#endregion
 
 
-Set-PSReadlineKeyHandler -Chord Ctrl+Alt+u -ScriptBlock {  # поиск и импорт свежей версии Wenix`а
-    Update-Wenix -reload
-}
-
-# Set-PSReadlineKeyHandler -Chord Ctrl+i -ScriptBlock {
-# # захват образа на USB drive
-#     $str = '/Capture-Image /CaptureDir:' + $inp + ' /ImageFile:"' + $out + $wimFile + '" /Name:"' + $wimName + '" /Description:"' + $wimDesc + '"'
-#     Start-Process -FilePath $env:windir\System32\Dism.exe -ArgumentList $str
-# }
-
-# Set-PSReadlineKeyHandler -Chord Ctrl+Alt+i -ScriptBlock {
-#     <#
-#         чтобы во время работы скрипта Capture-Wim.ps1 по захвату wim-файла можно было продолжить работу в основной консоли PowerShell`а, был выбран окольный путь запуска скрипта через cmd
-#         по окончании работы скрипт выключает компьютер
-#     #>
-
-#     # кодируем аргументы в base64-строку
-#     $command = "$env:SystemDrive\Capture-Wim.ps1"
-#     $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
-#     $encodedCommand = [Convert]::ToBase64String($bytes)
-
-#     # новый процесс
-#     $proc = New-Object -TypeName System.Diagnostics.Process
-
-#     # окольный путь запуска, через cmd, но так можно продолжить работу в основном окне PowerShell`а
-#     $proc.StartInfo.FileName = "cmd.exe"
-#     $proc.StartInfo.Arguments = "/c start powershell.exe -encodedCommand $encodedCommand"
-
-#     $proc.StartInfo.UseShellExecute = $true  # использовать оболочку для запуска процесса
-#     $proc.StartInfo.CreateNoWindow = $false  # запустить в новом окне
-
-#     $proc.Start()  # запуск процесса
-#     # $proc.WaitForExit()
-# }
+#region Hot Key Info
+    
+    Set-Location -Path $env:SystemDrive\  # переход в корень диска
+    
+    Get-PSDrive -PSProvider FileSystem | Select-Object Name, Root, Description, Free, Used | Format-Table -AutoSize  # информация о дисках
+    
+    Start-Process -FilePath "$env:SystemRoot\System32\startnet.cmd"
+    
+    Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
+    
+    Write-Host -ForegroundColor Magenta "      Ctrl + u to Update-Wenix"
+    
+#endregion
 
 
-
-Set-Location -Path $env:SystemDrive\  # переход в корень диска
-
-Get-PSDrive -PSProvider FileSystem | Select-Object Name, Root, Description, Free, Used | Format-Table -AutoSize  # информация о дисках
-
-Start-Process -FilePath "$env:SystemRoot\System32\startnet.cmd"
-
-# Write-Host -ForegroundColor Magenta "      Ctrl + i to capture $inp to $out$wimFile"
-
-# Write-Host -ForegroundColor Red     "Alt + Ctrl + i to capture $inp to $out$wimFile AND SHUTDOWN"
-
-Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
-
-Write-Host -ForegroundColor Magenta "Alt + Ctrl + u to Update-Wenix"
-
-# запуск меню
-Update-Wenix
-
-
-Import-Module -Force Wenix
-Use-Wenix
+#region запуск меню
+    
+    $Global:WenixBootWimVerTempFile = New-TemporaryFile
+    
+    $Global:WenixbootWimVer = (Get-Module -list -Name Wenix | Get-Content -Encoding UTF8 | Where-Object {$_ -match 'ModuleVersion'}).Split(' = ')[-1].Replace("'", '')
+    
+    $Global:WenixbootWimVer | Out-File -Encoding unicode -FilePath $Global:WenixBootWimVerTempFile
+    
+    # Get-Content $Global:WenixBootWimVerTempFile
+    
+    Update-Wenix
+    
+    Import-Module -Force Wenix
+    
+    Use-Wenix
+    
+#endregion
