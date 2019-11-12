@@ -302,6 +302,7 @@ REM сборка iso-файла winPE
         mklink /h "%wd%\%arc%\media\.IT\PE\Add-2nd_boot_entry.cmd"  "%wd%\..\..\scripts_helpers\Add-2nd_boot_entry.cmd"
         
         mklink /h "%wd%\%arc%\media\.IT\PE\BootStrap.csv"           "%wd%\..\BootStrap.csv"
+        REM mklink /h "%wd%\%arc%\media\.IT\PE\BootStrap.csv"           "%wd%\..\BootStrap.csv.example"
         
         mklink /J "%wd%\%arc%\media\.IT\PE\Wenix"                   "%wd%\..\..\Wenix"
     
