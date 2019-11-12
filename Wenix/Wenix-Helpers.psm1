@@ -684,6 +684,60 @@ function Add-Junctions7  # в Windows 7 алгоритм назначения gu
 }
 
 
+function Publish-PostInstallAutoRun  # алгоритм вычисления guid в 10й PE и в Windows 10 одинаковый - ссылки через UNC-пути сделанные из PE будут работать и в основной ОС
+{
+    try
+    {
+        # Get-Volume (и модуль Storage в целом) не работает в 7-ке, т.к. WMI не поддерживает нужные классы
+        # поэтому, т.к. эта же функция используется в 7-ке через cmd-костыль, она реализована через Get-CimInstance
+        # в кастомном 7-шном install.wim установлен 5.1 PowerShell
+        
+        # $guidPE = (Get-Partition -DiskNumber $DiskNumber -ErrorAction Stop | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolPE'].label}).Path
+        
+        $guidOS = (Get-Partition -DiskNumber $DiskNumber -ErrorAction Stop | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolOS'].label}).DriveLetter
+        
+        $AutoRun = '{0}:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd' -f $guidOS
+        
+        $CommandText = @'
+            $pe = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.SystemVolume -eq $true}).DeviceID  # pe
+
+            $os = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.BootVolume -eq $true}).DeviceID    # os
+
+            $AutoDir = '{0}ProgramData\Microsoft\Windows\Start Menu\Programs\Startup' -f $os
+
+            $AutoRun = '{0}ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd' -f $os
+
+            if (Test-Path -Path ($os + '.IT')) { Remove-Item -Recurse -Force -Path ($os + '.IT') }
+
+            if (Test-Path -Path ($pe + '.IT'))
+            {
+                Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($os + '.IT'), ($pe + '.IT')
+            }
+'@
+        
+        $Commandbytes = [System.Text.Encoding]::Unicode.GetBytes($CommandText)
+            
+        $CommandBase64 = [Convert]::ToBase64String($Commandbytes)
+        
+        
+        '@echo off'                        | Out-File -Encoding ascii -FilePath $AutoRun
+        'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -encodedCommand {0}' -f $CommandBase64 | Out-File -Encoding ascii -FilePath $AutoRun -Append
+        'echo Add-Junctions'               | Out-File -Encoding ascii -FilePath $AutoRun -Append
+        'echo %~dpnx0'                     | Out-File -Encoding ascii -FilePath $AutoRun -Append
+        # 'start "" /b explorer.exe "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
+        'bcdedit /timeout 5'               | Out-File -Encoding ascii -FilePath $AutoRun -Append
+        # 'bcdedit /enum'                    | Out-File -Encoding ascii -FilePath $AutoRun -Append
+        'timeout /t 55'                    | Out-File -Encoding ascii -FilePath $AutoRun -Append
+        'erase /f /q "%~dpnx0"'            | Out-File -Encoding ascii -FilePath $AutoRun -Append
+    }
+    
+    catch { $_ }
+    
+    
+    return $res
+}
+
+
 function Select-TargetDisk  # функция получает инфо по дискам и в случае нескольких дисков предлагает выбрать целевой для развёртывания Wenix
 {
     param ()
