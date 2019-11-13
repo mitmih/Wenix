@@ -1,4 +1,18 @@
+x   2.1.4.9 bug detected: Test-Disk всегда выдаёт ответ $false, т.е. требуется полная переразметка диска, т.к.
+        при проверке диска Test-Disk ищет совпадение метки тома среди разделов выбранного диска и запоминает размер ТОМА
+        в конфиге в хэштаблице $volumes указываются размеры РАЗДЕЛОВ в гигабайтах
+        размер тома меньше размера раздела на 4096 байт, поэтому они не совпадают и по этому и другим томам/разделом получаем $false, т.е. диск якобы нужно переразметить
 
+-   при запуске копировать сетевой конфиг в x:\.it\pe - тогда можно будет убрать флешку сразу после запуска
+-   если сейчас извлечь флешку - в консоль попадает ошибка - нужно обновлять доступные тома с учётом извлечённых устройств
+        Copy-Item : Cannot find drive. A drive with the name 'D' does not exist.
+        At
+        X:\windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules\Wenix\Wenix.psm1:157
+        char:53
+        + ... tConfig ) { Copy-Item -Force -Path $NetConfig -Destination 'X:\.IT\PE ...
+        +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            + CategoryInfo          : ObjectNotFound: (D:String) [Copy-Item], DriveNotFoundException
+            + FullyQualifiedErrorId : DriveNotFound,Microsoft.PowerShell.Commands.CopyItemCommand
 
 
 +   новая функция - публикует скрипт в автозапуске для пост-установочной настройки ОС (тайминг boot-меню, символьная ссылка на .IT boot-тома)
