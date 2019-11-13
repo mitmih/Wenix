@@ -9,14 +9,16 @@ $volumes = [ordered] @{  # схема разбивки ЖД
     'VolUD' = New-Object psobject -Property @{ letter = [char]'Q' ; size = 0    ; active = $false ; label = 'Data' }
 }
 
-# TODO: в случае нескольких дисков нужно показывать инфу по дискам и давать пользователю выбор индекса целевого диска, наподобие Show-Menu
-$DiskNumber = -1  # работа всегда идёт с первым диском в системе
 
+$DiskNumber = -1  # работа всегда идёт с первым диском в системе
 
 $BootStrap = '.IT\PE\BootStrap.csv'  # NetWork Shares access configuration file
 
-
 $ModulePath = '.IT\PE\Wenix'  # Path for search newer module versions
+
+$TimeOutBCDEdit = 5
+
+$TimeOutAutoRun = 5
 
 
 Export-ModuleMember -Variable *

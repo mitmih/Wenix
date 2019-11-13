@@ -243,9 +243,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                         
                         Set-NextBoot  # принудительно загрузиться в свежую ОС - ускоряет процесс установки
                         
-                        # junction-ссылки на .IT
-                        # if ($ver -eq '10') { Add-Junctions } elseif ($ver -eq '7' ) { Add-Junctions7 }
-                        Publish-PostInstallAutoRun
+                        Publish-PostInstallAutoRun  # autorun cmd скрипт: + junction-ссылка на <pe partition root>:\.IT, + тайминг boot-меню
                         
                         Write-Host ('|=> {0:-2} <=|' -f $ver)
                         

@@ -31,13 +31,13 @@ function Show-Menu  # отображает меню
     
     begin
     {
-        if (Test-Path -Path $Global:WenixBootWimVerTempFile)
+        if (Test-Path -Path Variable:Global:WenixBootWimVerTempFile)
         {
             $ver = Get-Content $Global:WenixBootWimVerTempFile
         }
         else
         {
-            $ver = '0.0.0.0'
+            $ver = ''
         }
         
         $MenuText = @(
@@ -235,7 +235,11 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
         {
             try
             {
-                $PartSize = (Get-Partition -DiskNumber $DiskNumber -ErrorAction Stop | Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Size
+                # $PartSize = (Get-Partition -DiskNumber $DiskNumber -ErrorAction Stop | Get-Volume | Where-Object {$_.FileSystemLabel -ieq $v.Value.label}).Size  # bug detected: PartitionSize = VolumeSize + 4096
+                $PartSize = (   Get-Partition -DiskNumber $DiskNumber -ErrorAction Stop |
+                                Get-Volume -ErrorAction Stop |
+                                Where-Object {$_.FileSystemLabel -ieq $v.Value.label} |
+                                Get-Partition -ErrorAction Stop ).size
             }
             
             catch
@@ -245,7 +249,7 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
             
             if ($PartSize)
             {
-                $CheckList[$v.Key] = if ($v.Value.size -gt 0) {$v.Value.size -eq $PartSize } else { $false }
+                $CheckList[$v.Key] = if ($v.Value.size -gt 0) {$v.Value.size -eq $PartSize } else { $true }  # размер последнего раздела в конфиге определён как 0, чтобы при разбивке диска на разделы он занял все оставшееся свободным место, поэтому сравнивать не с чем и здесь должено быть $true, иначе из-за этого сравнения диск будет признан подлежащим переразметке
             }
             else { $CheckList[$v.Key] = $false }
         }
@@ -626,64 +630,6 @@ function Set-NextBoot  # перезагрузка в дефолт-пункт (ч
 }
 
 
-function Add-Junctions  # алгоритм вычисления guid в 10й PE и в Windows 10 одинаковый - ссылки через UNC-пути сделанные из PE будут работать и в основной ОС
-{
-    try
-    {
-        # Get-Volume (и модуль Storage в целом) не работает в 7-ке, т.к. WMI не поддерживает нужные классы
-        # поэтому, т.к. эта же функция используется в 7-ке через cmd-костыль, она реализована через Get-CimInstance
-        # в кастомном install.wim установлен 5.1 PowerShell
-        $guidPE = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq $volumes['VolPE'].label}).DeviceID
-        
-        $guidOS = (Get-CimInstance -ClassName 'Win32_Volume' | Where-Object {$_.Label -eq $volumes['VolOS'].label}).DeviceID
-        
-        
-        if (Test-Path -Path ($guidOS + '.IT')) { Remove-Item -Recurse -Force -Path ($guidOS + '.IT') }  # существующая (напр. развёрнута из wim-файла) папка помешает сделать ссылку
-        
-        if (Test-Path -Path ($guidPE + '.IT'))
-        {
-            # junction-ссылка с ОС-тома ведёт на '.IT' загрузочного раздела, пути в формате UNC
-            Start-Process -FilePath "cmd.exe" -ArgumentList '/c','mklink', '/J', ($guidOS + '.IT'), ($guidPE + '.IT')
-        }
-    }
-    
-    catch { $_ }
-    
-    
-    return $res
-}
-
-
-function Add-Junctions7  # в Windows 7 алгоритм назначения guid`ов томам отличается от winPE 10, поэтому ссылки нужно делать делать уже загрузившись в основную ОС
-{
-    # изворот: в функции Add-Junctions есть обращения к глобальной конфиг-переменной $volumes
-    # поэтому в тексте encodedCommand нужно определить точь в точь такую же переменную, чтобы сохранить работоспособность при выполнении через батник
-    $txt = Get-Content -Encoding UTF8 -Raw -Path ((Get-Module Wenix).NestedModules | Where-Object {$_.name -match 'config'}).path
-    
-    $bytes = [System.Text.Encoding]::Unicode.GetBytes( ($txt -ireplace 'Export-ModuleMember -Variable \*', '') + (Get-Command Add-Junctions).Definition )
-    
-    $encodedCommand = [Convert]::ToBase64String($bytes)
-    
-    $volOSLetter = (Get-Partition -DiskNumber $DiskNumber | Get-Volume | Where-Object {$_.FileSystemLabel -eq $volumes['VolOS'].label}).DriveLetter
-    
-    $AutoRun = '{0}:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Add-Junctions.cmd' -f $volOSLetter
-    
-    '@echo off' | Out-File -Encoding ascii -FilePath $AutoRun
-    
-    'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -encodedCommand {0}' -f $encodedCommand | Out-File -Encoding ascii -FilePath $AutoRun -Append
-    
-    'echo Add-Junctions' | Out-File -Encoding ascii -FilePath $AutoRun -Append
-    
-    'echo %~dpnx0' | Out-File -Encoding ascii -FilePath $AutoRun -Append
-    
-    # 'start "" /b explorer.exe "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
-    
-    'timeout /t 55' | Out-File -Encoding ascii -FilePath $AutoRun -Append
-    
-    'erase /f /q "%~dpnx0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
-}
-
-
 function Publish-PostInstallAutoRun  # алгоритм вычисления guid в 10й PE и в Windows 10 одинаковый - ссылки через UNC-пути сделанные из PE будут работать и в основной ОС
 {
     try
@@ -715,19 +661,17 @@ function Publish-PostInstallAutoRun  # алгоритм вычисления gui
             }
 '@
         
-        $Commandbytes = [System.Text.Encoding]::Unicode.GetBytes($CommandText)
+        $CommandBytes = [System.Text.Encoding]::Unicode.GetBytes($CommandText)
             
-        $CommandBase64 = [Convert]::ToBase64String($Commandbytes)
+        $CommandBase64 = [Convert]::ToBase64String($CommandBytes)
         
         
         '@echo off'                        | Out-File -Encoding ascii -FilePath $AutoRun
         'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -encodedCommand {0}' -f $CommandBase64 | Out-File -Encoding ascii -FilePath $AutoRun -Append
         'echo Add-Junctions'               | Out-File -Encoding ascii -FilePath $AutoRun -Append
         'echo %~dpnx0'                     | Out-File -Encoding ascii -FilePath $AutoRun -Append
-        # 'start "" /b explorer.exe "%~dp0"' | Out-File -Encoding ascii -FilePath $AutoRun -Append
-        'bcdedit /timeout 5'               | Out-File -Encoding ascii -FilePath $AutoRun -Append
-        # 'bcdedit /enum'                    | Out-File -Encoding ascii -FilePath $AutoRun -Append
-        'timeout /t 55'                    | Out-File -Encoding ascii -FilePath $AutoRun -Append
+        "bcdedit /timeout $TimeOutBCDEdit" | Out-File -Encoding ascii -FilePath $AutoRun -Append
+        "timeout /t $TimeOutAutoRun"       | Out-File -Encoding ascii -FilePath $AutoRun -Append
         'erase /f /q "%~dpnx0"'            | Out-File -Encoding ascii -FilePath $AutoRun -Append
     }
     
