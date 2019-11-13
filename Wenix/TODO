@@ -5,7 +5,9 @@ x   2.1.4.9 bug detected: Test-Disk всегда выдаёт ответ $false,
 
 -   добавить настройку таймаута boot-меню в конфиг
 
--   исправить вывод версий ramdisk`а: Test-Path Variable:Global:WenixBootWimVerTempFile
+-   исправить вывод версий ramdisk`а:
+        использовать либо Test-Path Variable:Global:WenixBootWimVerTempFile
+        либо $null -eq $Global:WenixBootWimVerTempFile
 
 -   добавить wenix.log и сохранять его в <pe partition root>:\.it\pe - для начала тайминги установки
 
