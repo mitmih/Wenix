@@ -17,6 +17,21 @@ function Use-Wenix  # главный поток исполнения скрип�
     
     process
     {
+        $NetConfig = Find-NetConfig  # объект файла сетевого конфига, должен лежать на томе в папке '<буква>:\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C D E etc
+        
+        if ( $NetConfig )
+        {
+            if (!(Test-Path -Path ('X:\' + $BootStrap | Split-Path -Parent)))
+            {
+                $null = New-Item -ItemType Directory -Path ('X:\' + $BootStrap | Split-Path -Parent) #-ErrorAction Stop
+            }
+            
+            Copy-Item -Force -Path $NetConfig -Destination ('X:\' + $BootStrap) #-ErrorAction Stop
+        }
+        
+        if (Test-Path -Path ('X:\' + $BootStrap)) { $NetConfig = Get-Item -Path ('X:\' + $BootStrap) }
+        
+        
         $cycle = $true ; while ( $cycle )
         {
             $key = Show-Menu
@@ -46,8 +61,6 @@ function Use-Wenix  # главный поток исполнения скрип�
                     
                     
                     #region  сетевые источники
-                    
-                    $NetConfig = Find-NetConfig  # объект файла сетевого конфига, должен лежать на томе в папке '<буква>:\.IT\PE\BootStrap.csv', поиск в алфавитном порядке C D E etc
                     
                     Write-Host ("{0,5:N1} minutes {1}" -f $WatchDogTimer.Elapsed.TotalMinutes, 'stage Find-NetConfig BootStrap.csv') #_#
                     
@@ -152,12 +165,7 @@ function Use-Wenix  # главный поток исполнения скрип�
                             
                             $log['backup ramdisk in memory'] = $copy
                             
-                            if ( $copy )
-                            {
-                                if ( $NetConfig ) { Copy-Item -Force -Path $NetConfig -Destination 'X:\.IT\PE' }
-                                
-                                break
-                            }
+                            if ( $copy ) { break }
                         }
                         
                         if (!$log['backup ramdisk in memory']) { return }  # нет бэкапа RAM-диска - нет смысла продолжать т.к. не будет возможности хотя бы загрузиться с PE

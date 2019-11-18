@@ -19,7 +19,7 @@ function Update-Wenix  # поиск и импорт более свежей ве
     
     if ( ($FindedModules | Sort-Object -Property 'Version' | Select-Object -Last 1).Version -gt (Get-Module -Name 'Wenix').Version )
     {
-        Copy-Item -Recurse -Force -Path ($FindedModules.Path | Split-Path -Parent) -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
+        Copy-Item -Recurse -Force -Path (($FindedModules | Sort-Object -Property 'Version' | Select-Object -Last 1).Path | Split-Path -Parent) -Destination "$env:SystemDrive\Windows\system32\config\systemprofile\Documents\WindowsPowerShell\Modules"
     }
     
     if ($reload) { Import-Module Wenix -Force }
