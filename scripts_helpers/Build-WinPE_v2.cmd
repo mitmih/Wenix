@@ -301,10 +301,20 @@ REM сборка iso-файла winPE
         
         mklink /h "%wd%\%arc%\media\.IT\PE\Add-2nd_boot_entry.cmd"  "%wd%\..\..\scripts_helpers\Add-2nd_boot_entry.cmd"
         
-        mklink /h "%wd%\%arc%\media\.IT\PE\BootStrap.csv"           "%wd%\..\BootStrap.csv"
-        REM mklink /h "%wd%\%arc%\media\.IT\PE\BootStrap.csv"           "%wd%\..\BootStrap.csv.example"
-        
         mklink /J "%wd%\%arc%\media\.IT\PE\Wenix"                   "%wd%\..\..\Wenix"
+    
+        
+        REM какой сетевой конфиг включать в ISO-файл: по-умолчанию пример конфига
+        
+        if /i "%2" == "" (
+            
+            mklink /h "%wd%\%arc%\media\.IT\PE\BootStrap.csv"       "%wd%\..\BootStrap.csv.example"
+        
+        ) else (
+            
+            mklink /h "%wd%\%arc%\media\.IT\PE\BootStrap.csv"       "%wd%\..\BootStrap.csv"
+        
+        )
     
     
     REM вырезаем "лишние" локализации
