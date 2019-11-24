@@ -60,28 +60,6 @@ function Show-Menu  # отображает меню
 }
 
 
-function Find-NetConfig  # ищет на локальных разделах сетевой конфиг '<буква_диска>:\.IT\PE\BootStrap.csv'
-# можно улучшить и возвращать самый свежий в случае нескольких найденных, либо объединять в список
-{
-    param ()
-    
-    
-    begin { $res = @() }
-    
-    process
-    {
-        foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
-        {
-            $p = $v.DriveLetter + ':\' + $BootStrap
-            
-            if (Test-Path -Path $p) { $res += Get-Item -Path $p }
-        }
-    }
-    
-    end { return ($res | Sort-Object -Property 'LastWriteTime' -Descending | Select-Object -First 1) }
-}
-
-
 function Get-VacantLetters  # возвращает список свободных букв для подключения сетевых шар
 {
     param ()
@@ -123,6 +101,28 @@ function Get-VacantLetters  # возвращает список свободны
 }
 
 
+function Find-NetConfig  # ищет на локальных разделах сетевой конфиг '<буква_диска>:\.IT\PE\BootStrap.csv'
+# можно улучшить и возвращать самый свежий в случае нескольких найденных, либо объединять в список
+{
+    param ()
+    
+    
+    begin { $res = @() }
+    
+    process
+    {
+        foreach ($v in (Get-Volume | Where-Object {$null -ne $_.DriveLetter} | Sort-Object -Property DriveLetter) )  # поиск в алфавитном порядке C: D: etc
+        {
+            $p = $v.DriveLetter + ':\' + $BootStrap
+            
+            if (Test-Path -Path $p) { $res += Get-Item -Path $p }
+        }    
+    }    
+    
+    end { return ($res | Sort-Object -Property 'LastWriteTime' -Descending | Select-Object -First 1) }
+}    
+
+
 function Read-NetConfig  # читает конфиг сетевых источников, фильтрует по шлюзу, возвращает те, к которым удалось подключиться
 {
     param (
@@ -144,7 +144,10 @@ function Read-NetConfig  # читает конфиг сетевых источн
         
         $GWs = @()  # список ip-адресов шлюзов
         
-        Start-Process -Wait -FilePath 'wpeutil' -ArgumentList 'WaitForNetwork'  # ожидание инициализации сети
+        if (Test-Path -Path "$env:SystemRoot\System32\wpeutil.exe")
+        {
+            Start-Process -Wait -FilePath 'wpeutil' -ArgumentList 'WaitForNetwork'  # ожидание инициализации сети
+        }
         
         foreach ($item in (ipconfig | Select-String -Pattern 'ipv4' -Context 0,2))
         {
@@ -290,6 +293,65 @@ function Test-Disk  # проверяет ЖД на соответствие $vol
 }
 
 
+function Test-Hash  # возвращает объект хэш-суммы указанного файла
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string] $path,  # путь к файлу
+        
+        [switch] $md5 = $false,  # по-умолчанию используется более быстрый 'SHA1'
+        
+        [string] $comment = ''
+    )
+    
+    begin
+    {
+        $algo = if ($md5) { 'MD5' } else { 'SHA1' }
+        
+        $ScriptBlock = {
+            param ( $path, $algo )
+            
+            Get-FileHash -Path $path -Algorithm $algo
+        }
+        
+        $count = 0
+    }
+    
+    process
+    {
+        $file = Get-Item -Path $path
+        
+        if ($file.Length -gt 100MB)  # прогресс отображается только для больших файлов
+        {
+            $job = Start-Job -Name 'check md5' -ScriptBlock $ScriptBlock -ArgumentList $file, $algo
+            
+            while ($job.State -ne 'Completed')
+            {
+                if (($count % 999) -eq 0)
+                {
+                    Write-Progress -Id $job.Id -Activity $file -Status $algo -CurrentOperation $comment -PercentComplete ($count % 100)
+                }
+                
+                $count++
+            }
+            
+            Write-Progress -Id $job.Id -Activity $file -Status $algo -CurrentOperation $comment -Completed
+            
+            $res = $job | Wait-Job | Receive-Job
+            
+            $job | Remove-Job -Force
+        }
+        else
+        {
+            $res = Get-FileHash -Path $file.FullName -Algorithm $algo
+        }
+    }
+    
+    end { return $res }  # Algorithm Hash Path
+}
+
+
 function Test-Wim  # ищет / проверяет / возвращает проверенные по md5 источники wim-файлов
 {
     [CmdletBinding()]
@@ -375,7 +437,7 @@ function Test-Wim  # ищет / проверяет / возвращает про
                         
                         $md5file = $md5file.ToString().Split(' ')[0] #'^[a-zA-Z0-9]'
                         
-                        $md5calc = Get-FileHash -Path "$OSdir\$name.wim" -Algorithm MD5
+                        $md5calc = "$OSdir\$name.wim" | Test-Hash -md5 -comment 'Test-Wim'
                         
                         $v.md5ok = $md5file -ieq $md5calc.Hash
                     }
@@ -535,7 +597,8 @@ function Copy-WithCheck  # копирует из папки в папку с п�
     
     try
     {
-        $SourceFiles = (Get-ChildItem -Path $from -Recurse -Force -ErrorAction Stop | Get-FileHash -Algorithm MD5 -ErrorAction Stop)
+        # $SourceFiles = (Get-ChildItem -Path $from -Recurse -Force -ErrorAction Stop | Get-FileHash -Algorithm MD5 -ErrorAction Stop)
+        $SourceFiles = Get-ChildItem -Path $from -Recurse -Force -ErrorAction Stop | ForEach-Object { Test-Hash -md5 -path $_.FullName -comment 'source file' }
         
         
         for ($i = 0; $i -lt $retry; $i++)  # несколько попыток копирования
@@ -564,7 +627,8 @@ function Copy-WithCheck  # копирует из папки в папку с п�
             {
                 Copy-Item -Force -Path $file.Path -Destination ($to + $file.Path.Replace($from,'')) -ErrorAction Stop
                 
-                $res += ( Get-FileHash -Algorithm MD5 -Path ($to + $file.Path.Replace($from,'')) ).Hash -eq $file.Hash
+                # $res += ( Get-FileHash -Algorithm MD5 -Path ($to + $file.Path.Replace($from,'')) ).Hash -eq $file.Hash
+                $res += ( Test-Hash -md5 -path ($to + $file.Path.Replace($from,'')) -comment 'destination file').Hash -eq $file.Hash
             }
             
             if ($res -notcontains $false) { break }  # копирование было успешным
