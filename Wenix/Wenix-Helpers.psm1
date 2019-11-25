@@ -328,10 +328,7 @@ function Test-Hash  # возвращает объект хэш-суммы ука
             
             while ($job.State -ne 'Completed')
             {
-                if (($count % 999) -eq 0)
-                {
-                    Write-Progress -Id $job.Id -Activity $file -Status $algo -CurrentOperation $comment -PercentComplete ($count % 100)
-                }
+                Write-Progress -Id $job.Id -Activity $file -Status $algo -CurrentOperation $comment -PercentComplete ($count % 100)
                 
                 $count++
             }
