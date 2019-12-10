@@ -3,15 +3,15 @@
 
 $WatchDogTimer = [system.diagnostics.stopwatch]::startNew()
 
-$file_read  = "C:\.it\PE\boot.wim.md5"    # исходник
-$file_write = "C:\.it\PE\boot.wim_md5.1"  # новый файл
-# $file_read  = "C:\.it\PE\boot.wim"    # исходник
-# $file_write = "C:\.it\PE\boot.wim_1"  # новый файл
+# $file_read  = "C:\.it\PE\boot.wim.md5"    # исходник
+# $file_write = "C:\.it\PE\boot.wim_md5.1"  # новый файл
+$file_read  = "C:\.it\PE\boot.wim"    # исходник
+$file_write = "C:\.it\PE\boot.wim_1"  # новый файл
 # $file_read  = "C:\.it\10\install.wim"    # исходник
 # $file_write = "C:\.it\10\install.wim_1"  # новый файл
 
 
-# Write-Progress -Activity 'Activity' -Status 'Status' -CurrentOperation 'CurrentOperation' -PercentComplete (0)
+if (Test-Path -Path $file_write) { Remove-Item -Path $file_write -Force }
 
 try
 {
@@ -28,11 +28,7 @@ try
     {
         $target.Write($buf, 0, $buf.Length)
         
-        if ( $source.Position % 50MB -eq 0)
-        # if ( ([int]($source.Position / $buf.Length)) % 1000 -eq 0)
-        {
-            Write-Progress -Activity 'Activity' -Status 'Status' -CurrentOperation 'CurrentOperation' -PercentComplete ([int] ($source.Position / $source.Length * 100) )
-        }
+        if ( $source.Position % 50MB -eq 0) { Write-Progress -Activity 'Activity' -Status 'Status' -CurrentOperation 'CurrentOperation' -PercentComplete ([int] ($source.Position / $source.Length * 100) ) }
     }
     
     if ($tail -gt 0) { $target.Write($buf[ 0..($tail - 1) ], 0, $tail) }  # запись хвостика
