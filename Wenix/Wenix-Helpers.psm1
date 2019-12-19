@@ -327,6 +327,8 @@ function Test-Hash  # возвращает объект хэш-суммы ука
             $job = Start-Job -Name 'check md5' -ScriptBlock $ScriptBlock -ArgumentList $file, $algo
             
             while ($job.State -ne 'Completed')
+            # частая перерисовка консольного окна (в т.ч. прогресс-бара) обычно замедляет выполнение
+            # сейчас замедления быть не должно, т.к. операция выполняется отдельным потоком), но можно реже проверять статус выполнения -> реже будет обновляться шкала
             {
                 Write-Progress -Id $job.Id -Activity $file -Status $algo -CurrentOperation $comment -PercentComplete ($count % 100)
                 
