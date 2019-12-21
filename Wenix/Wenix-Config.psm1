@@ -1,5 +1,5 @@
 $volumes = [ordered] @{  # схема разбивки ЖД
-    # Active (bootmgr) + winPE RAM-disk + wim-files storage
+    # Active (bootmgr) + Wenix cache (winPE RAM-disk + wim-files storage)
     'VolPE' = New-Object psobject -Property @{ letter = [char]'B' ; size = 20GB ; active = $true  ; label = 'PE' }
     
     # windows volume
@@ -10,15 +10,15 @@ $volumes = [ordered] @{  # схема разбивки ЖД
 }
 
 
-$DiskNumber = -1  # работа всегда идёт с первым диском в системе
+$DiskNumber = -1  # начиная с версии 2.1.4 диск выбирает пользователь
 
 $BootStrap = '.IT\PE\BootStrap.csv'  # NetWork Shares access configuration file
 
 $ModulePath = '.IT\PE\Wenix'  # Path for search newer module versions
 
-$TimeOutBCDEdit = 5
+$TimeOutBCDEdit = 5  # boot menu display timeout
 
-$TimeOutAutoRun = 5
+$TimeOutAutoRun = 5  # post-install cmd-script timeout before self erasing
 
 
 Export-ModuleMember -Variable *

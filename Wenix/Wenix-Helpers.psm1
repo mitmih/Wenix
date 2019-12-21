@@ -46,7 +46,7 @@ function Show-Menu  # отображает меню
             ""
             "Please press specified key to select action:"
             ""
-            "   <--     escape from menu"
+            # "   <--     escape to shell"
             "   Esc     reboot"
             "   0       re-install Windows 10"
             "   7       re-install Windows 7"

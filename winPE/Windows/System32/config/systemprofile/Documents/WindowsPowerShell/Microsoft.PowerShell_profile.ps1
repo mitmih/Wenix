@@ -50,7 +50,7 @@ function Update-Wenix  # поиск и импорт более свежей ве
     
     Start-Process -FilePath "$env:SystemRoot\System32\startnet.cmd"
     
-    Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
+    # Write-Host -ForegroundColor Magenta "      Ctrl + f to launch Far 3.0"
     
     Write-Host -ForegroundColor Magenta "      Ctrl + u to Update-Wenix"
     
